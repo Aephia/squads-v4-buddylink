@@ -1,0 +1,22 @@
+{
+	"name": "squads-v4-buddylink",
+	"main": "lib/main.js",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"dev": "ts-node ./src/main.ts",
+		"build": "tsc",
+		"execute": "node --experimental-specifier-resolution=node --no-warnings ./lib/main.js"
+	},
+	"devDependencies": {
+		"ts-node": "^10.9.1",
+		"typescript": "^5.0.2"
+	},
+	"dependencies": {
+		"@ladderlabs/buddy-sdk": "^0.2.6",
+		"@solana/web3.js": "^1.78.4",
+		"@sqds/multisig": "^1.8.0",
+		"bs58": "^5.0.0"
+	}
+}

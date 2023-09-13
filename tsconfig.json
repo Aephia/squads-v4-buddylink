@@ -1,0 +1,25 @@
+{
+	"compilerOptions": {
+		"target": "ES2020",
+		"useDefineForClassFields": true,
+		"module": "NodeNext",
+		"lib": ["ES2020"],
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"outDir": "lib",
+
+		/* Bundler mode */
+		"moduleResolution": "NodeNext",
+		"resolveJsonModule": true,
+
+		/* Linting */
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true
+	},
+	"ts-node": {
+		"esm": true
+	},
+	"include": ["src"]
+}

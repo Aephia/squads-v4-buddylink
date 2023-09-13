@@ -1,0 +1,10 @@
+{
+	"rpc": "https://api.mainnet-beta.solana.com",
+	"devAccount": {
+		"public": "public key of a wallet with a little SOL - only used on mainnet",
+		"private": "associated exported private key"
+	},
+	"members": ["public key for member 1", "public key for member 2"],
+	"threshold": 2,
+	"buddyLinkKey": "BuddyLink Member/Referral key"
+}
