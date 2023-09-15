@@ -1,5 +1,5 @@
-import { Client } from '@ladderlabs/buddy-sdk';
 import { Connection, Keypair, PublicKey, Signer, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { Client } from '@ladderlabs/buddy-sdk';
 
 export async function createMember(connection: Connection, feePayer: Keypair, orgName: string, memberName: string) {
 	const instructions = await getCreateMemberInstructions(connection, feePayer.publicKey, orgName, memberName);

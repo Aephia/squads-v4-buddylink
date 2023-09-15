@@ -1,10 +1,17 @@
-import { Connection, Keypair, PublicKey, TransactionInstruction, TransactionMessage, TransactionSignature } from '@solana/web3.js';
+import {
+	Connection,
+	Keypair,
+	PublicKey,
+	TransactionInstruction,
+	TransactionMessage,
+	TransactionSignature,
+} from '@solana/web3.js';
 import * as multisig from '@sqds/multisig';
 const { Permissions } = multisig.types;
 
 /**
  * Create a Squad where all members have max permissions, and there is no timelock and no configAuhority
- * 
+ *
  * @param connection RPC Connection
  * @param creator Keypair that is going to pay for all this (create a burner, fund it and import the keys)
  * @param memberList List of public keys for the initial Squad members
@@ -16,7 +23,7 @@ export async function createSimpleSquad(
 	creator: Keypair,
 	memberList: PublicKey[],
 	threshold: number
-): Promise<{ multisigPda: PublicKey, signature: TransactionSignature }> {
+): Promise<{ multisigPda: PublicKey; signature: TransactionSignature }> {
 	if (threshold > memberList.length) {
 		throw "Threshold can't be greater than the total number of Squad members";
 	}
@@ -43,7 +50,7 @@ export async function createSimpleSquad(
 
 	return {
 		multisigPda,
-		signature
+		signature,
 	};
 }
 
@@ -64,14 +71,18 @@ export async function createSquadTransaction(
 	});
 
 	console.log(
-		JSON.stringify({
-			feePayer,
-			multisigPda,
-			creator: feePayer.publicKey,
-			vaultIndex: 0,
-			ephemeralSigners: 0,
-			transactionMessage,
-		}, undefined, '  ')
+		JSON.stringify(
+			{
+				feePayer,
+				multisigPda,
+				creator: feePayer.publicKey,
+				vaultIndex: 0,
+				ephemeralSigners: 0,
+				transactionMessage,
+			},
+			undefined,
+			'  '
+		)
 	);
 
 	return multisig.rpc.vaultTransactionCreate({
@@ -89,7 +100,7 @@ export async function createSquadTransaction(
 export function approveTransaction(
 	connection: Connection,
 	multisigPda: PublicKey,
-	transactionIndex: BigInt,
+	transactionIndex: bigint,
 	creator: Keypair
 ): Promise<TransactionSignature> {
 	return multisig.rpc.proposalApprove({
@@ -104,7 +115,7 @@ export function approveTransaction(
 export async function executeTransaction(
 	connection: Connection,
 	multisigPda: PublicKey,
-	transactionIndex: BigInt,
+	transactionIndex: bigint,
 	creator: Keypair
 ): Promise<TransactionSignature> {
 	return await multisig.rpc.vaultTransactionExecute({
@@ -119,7 +130,7 @@ export async function executeTransaction(
 
 /**
  * Derive the PDA for the Squads Vault
- * 
+ *
  * @param multisigPda The MultiSig PDA
  * @returns The vault PDA
  */

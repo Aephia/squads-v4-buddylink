@@ -18,8 +18,8 @@ import {
 // @ts-ignore
 import config from './config.json' assert { type: 'json' };
 
-// const BL_ORGANIZATION = 'staratlas';
 const ENV: 'prod' | 'dev' = 'dev';
+// const BL_ORGANIZATION = 'staratlas';
 
 async function createNewSquadWithBuddyLink() {
 	const connection = getNewConnection();
