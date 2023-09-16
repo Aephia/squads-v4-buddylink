@@ -24,6 +24,7 @@ node_modules
 # Project specific
 test-ledger
 lib
+!src/lib
 config.json
 buddylink.so
 squads.so

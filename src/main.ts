@@ -9,12 +9,14 @@ import {
 import bs58 from 'bs58';
 //import { getCreateMemberInstructions } from './libs/buddylink.js';
 import {
-	createSquadTransaction,
+	createSquadProposal,
 	createSimpleSquad,
 	getVaultPdaForMultiSig,
-	approveTransaction,
+	approveProposal,
 	executeTransaction,
-} from './libs/squads.js';
+	getProposalDetails,
+	getSquadDetails,
+} from './lib/squads.js';
 // @ts-ignore
 import config from './config.json' assert { type: 'json' };
 
@@ -36,10 +38,18 @@ async function createNewSquadWithBuddyLink() {
 
 	// Create the Squad with temporary threshold 1, so that our creator can finish setting things up
 	const { multisigPda, signature: creationSignature } = await createSimpleSquad(connection, creator, members, 1);
-	console.log('Multisig created: ', creationSignature);
+	console.log('Multisig created:', creationSignature);
+
+	const multisigAccount = await getSquadDetails(connection, multisigPda);
+	console.log('MultiSig:', JSON.stringify(multisigAccount, undefined, ' '));
+
+	// const data = await connection.getAccountInfo(creator.publicKey);
+	// console.log(data);
+
+	const vaultPda = getVaultPdaForMultiSig(multisigPda);
+	console.log('Vault account:', vaultPda);
 
 	// Get the BuddyLink creation instruction
-	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	let instructions: TransactionInstruction[];
 	try {
 		//instructions = await getCreateMemberInstructions(connection, vaultPda, BL_ORGANIZATION, config.buddyLinkKey);
@@ -50,13 +60,14 @@ async function createNewSquadWithBuddyLink() {
 	}
 
 	// Create a MultiSig transaction using the BuddyLink instructions
-	let signature = await createSquadTransaction(connection, multisigPda, instructions, creator);
+	let { signature, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator);
 	console.log('BuddyLink referral Transaction created:', signature);
 
-	const transactionIndex = 1n;
+	const proposal = await getProposalDetails(connection, multisigPda, transactionIndex);
+	console.log('Proposal:', JSON.stringify(proposal, undefined, ' '));
 
 	// Approve the transaction
-	signature = await approveTransaction(connection, multisigPda, transactionIndex, creator);
+	signature = await approveProposal(connection, multisigPda, transactionIndex, creator);
 	console.log('Transaction approved:', signature);
 
 	// Execute the transaction
@@ -68,7 +79,7 @@ function getNewConnection(): Connection {
 	if (ENV === 'prod') {
 		return new Connection(config.rpc);
 	} else {
-		console.log('DEV MODE');
+		console.log('Running in DEV mode');
 		return new Connection('http://localhost:8899', 'confirmed');
 	}
 }

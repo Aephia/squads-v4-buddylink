@@ -21,6 +21,7 @@ Note: All Squad members will have all permissions. If this is not your intent, f
 3. Use the dev-only account to apporve & execute the transaction
 
 TODO:
+
 4. Update the threshold of the Squad to the value provided in config.json
 5. Remove dev-only from the Squad
 
@@ -31,10 +32,10 @@ Done.
 To set up a local testserver, follow these steps:
 
 1. Install the Solana CLI tools if you haven't already. Go to https://docs.solana.com/cli/install-solana-cli-tools for instructions
-2. navigate to a suitable folder/directory and run the following in this order:
-3. `solana program dump --url mainnet-beta BUDDYtQp7Di1xfojiCSVDksiYLQx511DPdj2nbtG9Yu5 buddylink.so`
+2. Navigate to a suitable folder/directory and run the following in this order:
+3. Run `solana program dump --url mainnet-beta BUDDYtQp7Di1xfojiCSVDksiYLQx511DPdj2nbtG9Yu5 buddylink.so`
 You should now see "Wrote program to buddylink.so"
-4. `solana program dump --url mainnet-beta SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf squads.so`
+4. Run `solana program dump --url mainnet-beta SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf squads.so`
 You should now see "Wrote program to squads.so"
 3. Run `solana-test-validator --bpf-program BUDDYtQp7Di1xfojiCSVDksiYLQx511DPdj2nbtG9Yu5 buddylink.so --bpf-program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf squads.so --reset`
 
