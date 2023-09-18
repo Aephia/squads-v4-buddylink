@@ -1,5 +1,9 @@
 {
-	"rpc": "https://api.mainnet-beta.solana.com",
+	"rpc": {
+		"mainnet": "https://api.mainnet-beta.solana.com",
+		"devnet": "https://devnet.solana.com",
+		"local": "http://localhost:8899"
+	},
 	"devAccount": {
 		"public": "public key of a wallet with a little SOL - only used on mainnet",
 		"private": "associated exported private key (base58 encoded)"

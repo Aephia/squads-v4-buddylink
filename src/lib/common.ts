@@ -7,20 +7,32 @@ import {
 	TransactionSignature,
 	SystemProgram,
 	sendAndConfirmTransaction,
+	ComputeBudgetProgram,
+	TransactionInstruction,
+	RpcResponseAndContext,
+	SignatureResult,
 } from '@solana/web3.js';
 import { confirmTransaction } from '../utils.js';
 
-export async function airdrop(connection: Connection, creator: Keypair, amountInSOL: number) {
-	const airdropSignature = await connection.requestAirdrop(creator.publicKey, amountInSOL * LAMPORTS_PER_SOL);
+export async function airdrop(
+	connection: Connection,
+	to: PublicKey,
+	amountInSOL: number
+): Promise<RpcResponseAndContext<SignatureResult>> {
+	const airdropSignature = await connection.requestAirdrop(to, amountInSOL * LAMPORTS_PER_SOL);
 	return confirmTransaction(connection, airdropSignature);
 }
 
-export function getTransferSolInstruction(from: PublicKey, to: PublicKey, amountInSOL: number) {
+export function getTransferSolInstruction(from: PublicKey, to: PublicKey, amountInSOL: number): TransactionInstruction {
 	return SystemProgram.transfer({
 		fromPubkey: from,
 		lamports: amountInSOL * LAMPORTS_PER_SOL,
 		toPubkey: to,
 	});
+}
+
+export function getSetComputeLimitInstruction(limit: number): TransactionInstruction {
+	return ComputeBudgetProgram.setComputeUnitLimit({ units: limit });
 }
 
 export function transferSol(

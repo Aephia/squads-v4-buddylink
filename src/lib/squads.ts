@@ -5,12 +5,15 @@ import {
 	TransactionInstruction,
 	TransactionMessage,
 	TransactionSignature,
+	VersionedTransaction,
 } from '@solana/web3.js';
 import * as multisig from '@sqds/multisig/lib/index.js';
 import { confirmTransaction } from '../utils.js';
 const { Permissions } = multisig.types;
 import { Multisig } from '@sqds/multisig/lib/generated/accounts/Multisig.js';
 import { Proposal } from '@sqds/multisig/lib/generated/accounts/Proposal.js';
+import { translateAndThrowAnchorError } from '@sqds/multisig/lib/errors.js';
+import { getSetComputeLimitInstruction } from './common.js';
 // const { Multisig, Proposal } = multisig.accounts;
 
 /**
@@ -146,6 +149,42 @@ export async function executeTransaction(
 	return signature;
 }
 
+export async function executeTransactionWithComputeLimit(
+	connection: Connection,
+	multisigPda: PublicKey,
+	transactionIndex: bigint,
+	executingMember: Keypair,
+	computeLimit: number,
+): Promise<TransactionSignature> {
+	const blockhash = (await connection.getLatestBlockhash()).blockhash;
+	const cuInstruction = getSetComputeLimitInstruction(computeLimit);
+	const { instruction, lookupTableAccounts } = await multisig.instructions.vaultTransactionExecute({
+		connection,
+		multisigPda,
+		member: executingMember.publicKey,
+		transactionIndex,
+	});
+
+	const message = new TransactionMessage({
+		payerKey: executingMember.publicKey,
+		recentBlockhash: blockhash,
+		instructions: [cuInstruction, instruction],
+	}).compileToV0Message(lookupTableAccounts);
+
+	const tx = new VersionedTransaction(message);
+	tx.sign([executingMember]);
+
+	let signature: TransactionSignature;
+	try {
+		signature = await connection.sendTransaction(tx);
+	} catch (err) {
+		translateAndThrowAnchorError(err);
+	}
+
+	await confirmTransaction(connection, signature);
+	return signature;
+}
+
 /**
  * Create a proposal to update the Squad's voting threshold
  * 
@@ -155,7 +194,7 @@ export async function executeTransaction(
  * @param newThreshold The new threshold
  * @returns The signature of the proposal creation and related transaction index
  */
-export async function updateThreshold(
+export async function createThresholdUpdateProposal(
 	connection: Connection,
 	multisigPda: PublicKey,
 	proposingMember: Keypair,
