@@ -17,7 +17,7 @@ import { Proposal } from '@sqds/multisig/lib/generated/accounts/Proposal.js';
  * Create a Squad where all members have max permissions, and there is no timelock and no configAuhority
  *
  * @param connection RPC Connection
- * @param creator Keypair that is going to pay for all this (create a burner, fund it and import the keys)
+ * @param creator Solana account that is going to pay for all this
  * @param memberList List of public keys for the initial Squad members
  * @param threshold Minimum approvals required to let a vote pass (has to be <= memberList size)
  * @returns The Multisig PDA and transaction signanture
@@ -57,11 +57,20 @@ export async function createSimpleSquad(
 	};
 }
 
+/**
+ * Create a proposal to execute a custom transaction
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param instructions The custom instructions that you want to execute in this transaction
+ * @param proposingMember The proposing Solana account (must be a Squad member) 
+ * @returns The signature of the proposal creation and related transaction index
+ */
 export async function createSquadProposal(
 	connection: Connection,
 	multisigPda: PublicKey,
 	instructions: TransactionInstruction[],
-	feePayer: Keypair
+	proposingMember: Keypair
 ): Promise<{ signature: TransactionSignature; transactionIndex: bigint }> {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
@@ -73,26 +82,26 @@ export async function createSquadProposal(
 		instructions,
 	});
 
-	const txSignature = await multisig.rpc.vaultTransactionCreate({
+	let signature = await multisig.rpc.vaultTransactionCreate({
 		connection,
-		feePayer,
+		feePayer: proposingMember,
 		multisigPda,
 		transactionIndex,
-		creator: feePayer.publicKey,
+		creator: proposingMember.publicKey,
 		vaultIndex: 0,
 		ephemeralSigners: 0,
 		transactionMessage,
 	});
 
-	console.log('Vault Transaction created: ', txSignature);
-	await confirmTransaction(connection, txSignature);
+	console.log('Vault Transaction created: ', signature);
+	await confirmTransaction(connection, signature);
 
-	let signature = await multisig.rpc.proposalCreate({
+	signature = await multisig.rpc.proposalCreate({
 		connection,
-		feePayer,
+		feePayer: proposingMember,
 		multisigPda,
 		transactionIndex,
-		creator: feePayer,
+		creator: proposingMember,
 	});
 
 	console.log('Proposal created: ', signature);
@@ -104,14 +113,14 @@ export async function approveProposal(
 	connection: Connection,
 	multisigPda: PublicKey,
 	transactionIndex: bigint,
-	creator: Keypair
+	approvingMember: Keypair
 ): Promise<TransactionSignature> {
 	const signature = await multisig.rpc.proposalApprove({
 		connection,
-		feePayer: creator,
+		feePayer: approvingMember,
 		multisigPda,
 		transactionIndex,
-		member: creator,
+		member: approvingMember,
 	});
 
 	await confirmTransaction(connection, signature);
@@ -122,20 +131,66 @@ export async function executeTransaction(
 	connection: Connection,
 	multisigPda: PublicKey,
 	transactionIndex: bigint,
-	creator: Keypair
+	executingMmember: Keypair
 ): Promise<TransactionSignature> {
 	const signature = await multisig.rpc.vaultTransactionExecute({
 		connection,
-		feePayer: creator,
+		feePayer: executingMmember,
 		multisigPda,
 		transactionIndex,
-		member: creator.publicKey,
-		signers: [creator],
+		member: executingMmember.publicKey,
+		signers: [executingMmember],
 	});
 
 	await confirmTransaction(connection, signature);
 	return signature;
 }
+
+/**
+ * Create a proposal to update the Squad's voting threshold
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param proposingMember The proposing Solana account
+ * @param newThreshold The new threshold
+ * @returns The signature of the proposal creation and related transaction index
+ */
+export async function updateThreshold(
+	connection: Connection,
+	multisigPda: PublicKey,
+	proposingMember: Keypair,
+	newThreshold: number
+): Promise<{ signature: TransactionSignature; transactionIndex: bigint }> {
+	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
+	console.log(transactionIndex);
+	let signature = await multisig.rpc.configTransactionCreate({
+		connection,
+		feePayer: proposingMember,
+		multisigPda,
+		transactionIndex,
+		creator: proposingMember.publicKey,	
+		actions: [
+			{
+				__kind: 'ChangeThreshold',
+				newThreshold,
+			},
+		],
+	});
+
+	await confirmTransaction(connection, signature);
+
+	signature = await multisig.rpc.proposalCreate({
+		connection,
+		feePayer: proposingMember,
+		multisigPda,
+		transactionIndex,
+		creator: proposingMember,
+	});
+
+	await confirmTransaction(connection, signature);
+	return { signature, transactionIndex };
+}
+
 
 /**
  * Derive the PDA for the Squads Vault

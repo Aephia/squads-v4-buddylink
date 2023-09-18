@@ -15,7 +15,7 @@ export async function airdrop(connection: Connection, creator: Keypair, amountIn
 	return confirmTransaction(connection, airdropSignature);
 }
 
-export function getTransferInstruction(from: PublicKey, to: PublicKey, amountInSOL: number) {
+export function getTransferSolInstruction(from: PublicKey, to: PublicKey, amountInSOL: number) {
 	return SystemProgram.transfer({
 		fromPubkey: from,
 		lamports: amountInSOL * LAMPORTS_PER_SOL,
@@ -23,12 +23,12 @@ export function getTransferInstruction(from: PublicKey, to: PublicKey, amountInS
 	});
 }
 
-export function transfer(
+export function transferSol(
 	connection: Connection,
 	from: Keypair,
 	to: PublicKey,
 	amountInSOL: number
 ): Promise<TransactionSignature> {
-	const transaction = new Transaction().add(getTransferInstruction(from.publicKey, to, amountInSOL));
+	const transaction = new Transaction().add(getTransferSolInstruction(from.publicKey, to, amountInSOL));
 	return sendAndConfirmTransaction(connection, transaction, [from]);
 }

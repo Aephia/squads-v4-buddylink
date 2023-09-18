@@ -12,11 +12,12 @@ import {
 	getVaultPdaForMultiSig,
 	approveProposal,
 	executeTransaction,
+	updateThreshold,
 	// getProposalDetails,
 	// getSquadDetails,
 } from './lib/squads.js';
 // @ts-ignore
-import { airdrop, getTransferInstruction, transfer } from './lib/common.js';
+import { airdrop, getTransferSolInstruction, transferSol } from './lib/common.js';
 import config from './config.json' assert { type: 'json' };
 
 const ENV: 'prod' | 'dev' = 'dev';
@@ -24,19 +25,15 @@ const ENV: 'prod' | 'dev' = 'dev';
 
 async function createNewSquadWithBuddyLink() {
 	const connection = getNewConnection();
-	const creator = getCreatorKeypair(config.feePayer.private);
+	const devAccount = await getDevAccount(connection);
 	const members = config.members.map((keyString: string) => new PublicKey(keyString));
 
-	if (ENV !== 'prod') {
-		await airdrop(connection, creator, 1);
-	}
+	// Add the devAccount to the member-list
+	members.unshift(devAccount.publicKey);
+	console.log(`Creator & Fee payer: ${devAccount.publicKey}`);
 
-	// Add the temporary creator to the member-list; this key will be removed at the end
-	members.unshift(creator.publicKey);
-	console.log(`Creator & Fee payer: ${creator.publicKey}`);
-
-	// Create the Squad with temporary threshold 1, so that our creator can finish setting things up
-	const { multisigPda, signature: creationSignature } = await createSimpleSquad(connection, creator, members, 1);
+	// Create the Squad with temporary threshold 1, so that our dev account can set everything up
+	const { multisigPda, signature: creationSignature } = await createSimpleSquad(connection, devAccount, members, 1);
 	console.log('Multisig created:', creationSignature);
 
 	// const multisigAccount = await getSquadDetails(connection, multisigPda);
@@ -45,6 +42,19 @@ async function createNewSquadWithBuddyLink() {
 	// const data = await connection.getAccountInfo(creator.publicKey);
 	// console.log(data);
 
+	await createBuddyLinkMember(connection, multisigPda, devAccount);
+	await updateSquadThreshold(connection, multisigPda, devAccount, config.threshold);
+}
+
+/**
+ * Create and execute a proposal to create a new BuddyLink Member
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param devAccount Solana account that is going to pay for all this
+ * @returns 
+ */
+async function createBuddyLinkMember(connection: Connection, multisigPda: PublicKey, devAccount: Keypair) {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	console.log('Vault account:', vaultPda.toString());
 
@@ -53,30 +63,52 @@ async function createNewSquadWithBuddyLink() {
 	try {
 		//instructions = await getCreateMemberInstructions(connection, vaultPda, BL_ORGANIZATION, config.buddyLinkKey);
 		// The transfer is being signed from the Squads Vault, that is why we use the VaultPda
-		instructions = [await getTransferInstruction(vaultPda, creator.publicKey, 0.01)];
+		instructions = [await getTransferSolInstruction(vaultPda, devAccount.publicKey, 0.01)];
 	} catch (err) {
 		console.error(err);
 		return;
 	}
 
 	// Create a MultiSig transaction using the BuddyLink instructions
-	let { signature, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator);
-	console.log('BuddyLink referral Transaction created:', signature);
+	let { signature, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, devAccount);
+	console.log('BuddyLink - Transaction created:', signature);
 
 	// const proposal = await getProposalDetails(connection, multisigPda, transactionIndex);
 	// console.log('Proposal:', JSON.stringify(proposal, undefined, ' '));
 
 	// Approve the transaction
-	signature = await approveProposal(connection, multisigPda, transactionIndex, creator);
-	console.log('Transaction approved:', signature);
+	signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	console.log('BuddyLink - Transaction approved:', signature);
 
 	// Wire some funds to the Vault
-	signature = await transfer(connection, creator, vaultPda, 0.01);
-	console.log('Funds transfered to Vault:', signature);
+	signature = await transferSol(connection, devAccount, vaultPda, 0.01);
+	console.log('BuddyLink - Funds transfered to Vault:', signature);
 
 	// Execute the transaction
-	signature = await executeTransaction(connection, multisigPda, transactionIndex, creator);
-	console.log('Transaction executed:', signature);
+	signature = await executeTransaction(connection, multisigPda, transactionIndex, devAccount);
+	console.log('BuddyLink - Transaction executed:', signature);
+}
+
+/**
+ * Create and execute a proposal to update the Squad threshold
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param devAccount Solana account that is going to pay for all this
+ * @param threshold The new threshold
+ * @returns 
+ */
+async function updateSquadThreshold(connection: Connection, multisigPda: PublicKey, devAccount: Keypair, threshold: number) {
+	let { signature, transactionIndex } = await updateThreshold(connection, multisigPda, devAccount, threshold);
+	console.log('Threshold Update - Proposal created:', signature);
+
+	// Approve the transaction
+	signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	console.log('Threshold Update - Transaction approved:', signature);
+
+	// Execute the transaction
+	signature = await executeTransaction(connection, multisigPda, transactionIndex, devAccount);
+	console.log('Threshold Update - Transaction executed:', signature);
 }
 
 function getNewConnection(): Connection {
@@ -88,7 +120,17 @@ function getNewConnection(): Connection {
 	}
 }
 
-function getCreatorKeypair(privateKeyString?: string) {
+async function getDevAccount(connection: Connection): Promise<Keypair> {
+	const creator = getDevKeypair(config.devAccount.private);
+
+	if (ENV !== 'prod') {
+		await airdrop(connection, creator, 1);
+	}
+
+	return creator;
+}
+
+function getDevKeypair(privateKeyString?: string) {
 	if (ENV === 'prod' && privateKeyString) {
 		const privateKeyArray = bs58.decode(privateKeyString);
 		return Keypair.fromSecretKey(privateKeyArray);
