@@ -97,16 +97,6 @@ export async function createSquadProposal(
 
 	console.log('Proposal created: ', signature);
 	await confirmTransaction(connection, signature);
-
-	// signature = await multisig.rpc.proposalActivate({
-	// 	connection,
-	// 	feePayer,
-	// 	member: feePayer,
-	// 	multisigPda,
-	// 	transactionIndex,
-	// });
-
-	// console.log('Proposal activated: ', signature);
 	return { signature, transactionIndex };
 }
 
@@ -116,18 +106,12 @@ export async function approveProposal(
 	transactionIndex: bigint,
 	creator: Keypair
 ): Promise<TransactionSignature> {
-
-	//console.log(JSON.stringify({ feePayer: creator, multisigPda, member: creator }));
-
 	const signature = await multisig.rpc.proposalApprove({
 		connection,
 		feePayer: creator,
 		multisigPda,
 		transactionIndex,
 		member: creator,
-		// sendOptions: {
-		// 	skipPreflight: true,
-		// },
 	});
 
 	await confirmTransaction(connection, signature);
