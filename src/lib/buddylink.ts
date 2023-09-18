@@ -1,14 +1,15 @@
 import { Connection, Keypair, PublicKey, Signer, Transaction, TransactionInstruction } from '@solana/web3.js';
-import { Client } from '@ladderlabs/buddy-sdk';
+import { Client, Treasury } from '@ladderlabs/buddy-sdk';
 import { Environment } from '../types.js';
 import { confirmTransaction } from '../utils.js';
+import { Member, MemberStatisticsAccount } from '@ladderlabs/buddy-sdk/dist/esm/models/Member.js';
 
 const PROGRAM_ID_DEVNET = '9zE4EQ5tJbEeMYwtS2w8KrSHTtTW4UPqwfbBSEkUrNCA';
 
 export async function createMember(connection: Connection, feePayer: Keypair, orgName: string, memberName: string) {
 	const instructions = await getCreateMemberInstructions(connection, feePayer.publicKey, orgName, memberName);
 	const transaction = new Transaction();
-	
+
 	transaction.add(...instructions);
 	await sendTransaction(transaction, connection, feePayer, []);
 }
@@ -16,15 +17,52 @@ export async function createMember(connection: Connection, feePayer: Keypair, or
 export async function getCreateMemberInstructions(connection: Connection, signerKey: PublicKey, orgName: string, memberName: string, env = Environment.PROD): Promise<TransactionInstruction[]> {
 	const client = getClient(connection, signerKey, env);
 	const isAvailable = await client.member.isMemberAvailable(orgName, memberName);
-	
+
 	console.log(orgName, memberName, isAvailable);
 	if (!isAvailable) {
-		const member = await client.member.getByName(orgName, memberName);
-		console.log(member);
+		// const member = await client.member.getByName(orgName, memberName);
+		// console.log(member);
 		throw `MemberName "${memberName}" is not available`;
 	}
+	const instructions = [];
 
-	return await client.initialize.createMember(orgName, memberName);
+	const atlasMint = new PublicKey("ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx");
+	const buddyName = Client.generateProfileName()
+
+	instructions.push(...(await client.initialize.createMemberWithRewards(orgName, memberName, atlasMint, undefined, null, buddyName)));
+
+	instructions.push(...(await client.initialize.createMemberStatistics(orgName, memberName)));
+
+	return instructions;
+}
+
+export async function getMember(connection: Connection, orgName: string, memberName: string, env = Environment.PROD) {
+	const client = getClient(connection, null!, env);
+	return await client.member.getByName(orgName, memberName);
+}
+
+export async function getMemberStatistics(member: Member) {
+	return await member.getStatistics()
+}
+
+export async function getTreasuries(connection: Connection, signerKey: PublicKey, env = Environment.PROD) {
+	const client = getClient(connection, signerKey, env);
+
+	const profile = await client.buddy.getProfile(signerKey);
+
+	if (profile)
+		return await client.treasury.getAllByBuddy(profile?.account.pda)
+
+	return null;
+}
+
+export async function getClaimTreasuryInstructions(treasury: Treasury) {
+	return await treasury.claim();
+}
+
+// Not yet tested
+export async function getClaimGoldenTicketInstructions(member: Member,) {
+	return await member.claimStarAtlas(1);
 }
 
 export async function sendTransaction(
