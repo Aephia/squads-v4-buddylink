@@ -6,12 +6,11 @@ import {
 import bs58 from 'bs58';
 import { airdrop, getNewConnection } from './lib/common.js';
 import { Configuration, Environment, Settings } from './types.js';
-import configData from '../config.json' assert { type: 'json' };
 import { createJSONFile, getScriptFolder, readJSONFile } from './utils.js';
 import { createNewSquadWithBuddyLink } from './createSquad.js';
 
 const env: Environment = Environment.LOCAL;
-const config: Configuration = configData as Configuration;
+const config = await getConfig();
 
 async function initialize() {
 	let settings: Settings | undefined = undefined;
@@ -63,6 +62,11 @@ async function getDevAccount(connection: Connection): Promise<Keypair> {
 	console.log('Using configured account:');
 	console.log('- Public:', account.publicKey.toString());
 	return account;
+}
+
+function getConfig(): Promise<Configuration> {
+	const filePath = resolve(getScriptFolder(), '../', 'config.json');
+	return readJSONFile<Configuration>(filePath);
 }
 
 function storeSettings(settings: Settings): Promise<void> {
