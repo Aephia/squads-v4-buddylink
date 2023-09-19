@@ -26,34 +26,33 @@ export async function getCreateMemberInstructions(connection: Connection, signer
 	}
 	const instructions = [];
 
-	const atlasMint = new PublicKey("ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx");
-	const buddyName = Client.generateProfileName()
+	const atlasMint = new PublicKey('ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx');
+	const buddyName = Client.generateProfileName();
 
 	instructions.push(...(await client.initialize.createMemberWithRewards(orgName, memberName, atlasMint, undefined, null, buddyName)));
-
 	instructions.push(...(await client.initialize.createMemberStatistics(orgName, memberName)));
 
 	return instructions;
 }
 
 export async function getMember(connection: Connection, orgName: string, memberName: string, env = Environment.PROD) {
-	const client = getClient(connection, null!, env);
+	const client = getClient(connection, undefined, env);
 	return await client.member.getByName(orgName, memberName);
 }
 
-export async function getMemberStatistics(member: Member) {
-	return await member.getStatistics()
+export async function getMemberStatistics(member: Member): Promise<MemberStatisticsAccount | null> {
+	return await member.getStatistics();
 }
 
-export async function getTreasuries(connection: Connection, signerKey: PublicKey, env = Environment.PROD) {
+export async function getTreasuries(connection: Connection, signerKey: PublicKey, env = Environment.PROD): Promise<Treasury[]> {
 	const client = getClient(connection, signerKey, env);
-
 	const profile = await client.buddy.getProfile(signerKey);
 
-	if (profile)
-		return await client.treasury.getAllByBuddy(profile?.account.pda)
+	if (profile) {
+		return await client.treasury.getAllByBuddy(profile?.account.pda);
+	}
 
-	return null;
+	return [];
 }
 
 export async function getClaimTreasuryInstructions(treasury: Treasury) {
@@ -87,7 +86,7 @@ export async function sendTransaction(
 	await confirmTransaction(connection, signature);
 }
 
-function getClient(connection: Connection, signerKey: PublicKey, env: Environment): Client {
+function getClient(connection: Connection, signerKey: PublicKey | undefined, env: Environment): Client {
 	if (env === Environment.DEV) {
 		return new Client(connection, signerKey, PROGRAM_ID_DEVNET);
 	}

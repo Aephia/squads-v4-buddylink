@@ -27,17 +27,16 @@ import { getSetComputeLimitInstruction } from './common.js';
  */
 export async function createSimpleSquad(
 	connection: Connection,
+	createKey: PublicKey,
 	creator: Keypair,
 	memberList: PublicKey[],
-	threshold: number
-): Promise<{ multisigPda: PublicKey; signature: TransactionSignature }> {
+	threshold: number,
+): Promise<{ multisigPda: PublicKey; vaultPda: PublicKey; signature: TransactionSignature }> {
 	if (threshold > memberList.length) {
 		throw "Threshold can't be greater than the total number of Squad members";
 	}
 
-	const createKey = Keypair.generate().publicKey;
 	const [multisigPda] = multisig.getMultisigPda({ createKey });
-
 	const signature = await multisig.rpc.multisigCreate({
 		connection,
 		createKey, // One time random Key (a UUID of sorts)
@@ -53,9 +52,11 @@ export async function createSimpleSquad(
 	});
 
 	await confirmTransaction(connection, signature);
+	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 
 	return {
 		multisigPda,
+		vaultPda,
 		signature,
 	};
 }
@@ -180,6 +181,26 @@ export async function executeTransactionWithComputeLimit(
 	} catch (err) {
 		translateAndThrowAnchorError(err);
 	}
+
+	await confirmTransaction(connection, signature);
+	return signature;
+}
+
+export async function executeConfigTransaction(
+	connection: Connection,
+	multisigPda: PublicKey,
+	transactionIndex: bigint,
+	executingMember: Keypair
+): Promise<TransactionSignature> {
+	const signature = await multisig.rpc.configTransactionExecute({
+		connection,
+		feePayer: executingMember,
+		multisigPda,
+		transactionIndex,
+		member: executingMember,
+		rentPayer: executingMember,
+		signers: [executingMember],
+	});
 
 	await confirmTransaction(connection, signature);
 	return signature;

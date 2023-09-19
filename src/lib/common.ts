@@ -13,6 +13,19 @@ import {
 	SignatureResult,
 } from '@solana/web3.js';
 import { confirmTransaction } from '../utils.js';
+import { Configuration, Environment } from '../types.js';
+
+export function getNewConnection(env: Environment, rpcOptions: Configuration['rpc']): Connection {
+	if (env === Environment.PROD) {
+		return new Connection(rpcOptions.mainnet);
+	} else if (env === Environment.DEV) {
+		console.log('Running in DEV mode');
+		return new Connection(rpcOptions.devnet, 'confirmed');
+	} else {
+		console.log('Running in LOCAL DEV mode');
+		return new Connection(rpcOptions.local, 'confirmed');
+	}
+}
 
 export async function airdrop(
 	connection: Connection,
