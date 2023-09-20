@@ -19,10 +19,8 @@ export function getNewConnection(env: Environment, rpcOptions: Configuration['rp
 	if (env === Environment.PROD) {
 		return new Connection(rpcOptions.mainnet);
 	} else if (env === Environment.DEV) {
-		console.log('Running in DEV mode');
 		return new Connection(rpcOptions.devnet, 'confirmed');
 	} else {
-		console.log('Running in LOCAL DEV mode');
 		return new Connection(rpcOptions.local, 'confirmed');
 	}
 }

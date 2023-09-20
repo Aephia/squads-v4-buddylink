@@ -15,10 +15,11 @@ import {
 	createThresholdUpdateProposal,
 	executeTransactionWithComputeLimit,
 	executeConfigTransaction,
-	// getProposalDetails,
-	// getSquadDetails,
+	createPermissionChangeProposal,
 } from './lib/squads.js';
-import { BuddyLinkConfig, Environment, SquadConfig } from './types.js';
+import { BuddyLinkConfig, Environment, LogType, SquadConfig } from './types.js';
+import { Permissions, Permission } from '@sqds/multisig/lib/types.js';
+import { log } from './utils.js';
 
 export async function createNewSquadWithBuddyLink(
 	connection: Connection,
@@ -32,28 +33,39 @@ export async function createNewSquadWithBuddyLink(
 
 	// Add the devAccount to the member-list
 	memberKeys.unshift(creator.publicKey);
-	console.log(`Creator & Fee payer: ${creator.publicKey}`);
 
 	// Create the Squad with temporary threshold 1, so that our dev account can set everything up
 	const { multisigPda, vaultPda, signature: creationSignature } = await createSimpleSquad(connection, createKey, creator, memberKeys, 1);
-	console.log('Multisig created:', creationSignature);
+	log('Created new Squads MultiSig:', LogType.HIGHLIGHT);
+	log(multisigPda.toString(), LogType.DETAILS, 'MultiSig PDA:');
+	log(vaultPda.toString(), LogType.DETAILS, 'Vault PDA:');
+	log(creationSignature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+	
+	let success: boolean;
 
-	buddyLinkConfig;
-	env;
+	if (env === Environment.LOCAL) {
+		success = await transferFromVault(connection, multisigPda, creator); // Use this to test only Squads-code (required on LOCAL env)
+		if (!success) {
+			throw('Could not execute SOL Transfer');
+		}
+	} else {
+		const success = await createBuddyLinkMember(
+			connection,
+			multisigPda,
+			creator,
+			buddyLinkConfig.orgName,
+			buddyLinkConfig.memberName,
+			env,
+		);
 
-	// const multisigAccount = await getSquadDetails(connection, multisigPda);
-	// console.log('MultiSig:', JSON.stringify(multisigAccount, undefined, ' '));
-
-	// await createBuddyLinkMember(
-	// 	connection,
-	// 	multisigPda,
-	// 	creator,
-	// 	buddyLinkConfig.orgName,
-	// 	buddyLinkConfig.memberName,
-	// 	env
-	// );
-	await transferFromVault(connection, multisigPda, creator);
+		if (!success) {
+			throw('Could not create BuddyLink Member');
+		}
+	}
+	
 	await updateSquadThreshold(connection, multisigPda, creator, squadConfig.threshold);
+	// await limitDevAccountPermissions(connection, multisigPda, creator);
 
 	return {
 		createKey,
@@ -70,37 +82,44 @@ export async function createNewSquadWithBuddyLink(
  * @param devAccount Solana account that is going to pay for all this
  * @returns 
  */
-async function createBuddyLinkMember(connection: Connection, multisigPda: PublicKey, creator: Keypair, orgName: string, memberName: string, env: Environment) {
+async function createBuddyLinkMember(connection: Connection, multisigPda: PublicKey, creator: Keypair, orgName: string, memberName: string, env: Environment): Promise<boolean> {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
-	console.log('Vault account:', vaultPda.toString());
 
 	// Get the BuddyLink creation instruction
 	let instructions: TransactionInstruction[];
 	try {
 		instructions = await getCreateMemberInstructions(connection, vaultPda, orgName, memberName, env);
 	} catch (err) {
-		console.error(err);
-		return;
+		log(err as string, LogType.ERROR);
+		return false;
 	}
 
 	// Create a MultiSig transaction using the BuddyLink instructions
-	let { signature, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator);
-	console.log('BuddyLink - Transaction created:', signature);
-
-	// const proposal = await getProposalDetails(connection, multisigPda, transactionIndex);
-	// console.log('Proposal:', JSON.stringify(proposal, undefined, ' '));
-
+	let { signatures, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator);
+	log('Transaction & Proposal created for BuddyLink Creation', LogType.HIGHLIGHT);
+	log(signatures[0], LogType.SIGNATURE);
+	log(signatures[1], LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+	
 	// Approve the transaction
-	signature = await approveProposal(connection, multisigPda, transactionIndex, creator);
-	console.log('BuddyLink - Transaction approved:', signature);
+	let signature = await approveProposal(connection, multisigPda, transactionIndex, creator);
+	log('Proposal approved', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Wire some funds to the Vault
 	signature = await transferSol(connection, creator, vaultPda, 0.1);
-	console.log('BuddyLink - Funds transfered to Vault:', signature);
+	log('The Vault was funded', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Execute the transaction
-	signature = await executeTransactionWithComputeLimit(connection, multisigPda, transactionIndex, creator, 300000);
-	console.log('BuddyLink - Transaction executed:', signature);
+	signature = await executeTransactionWithComputeLimit(connection, multisigPda, transactionIndex, creator, 500000);
+	log('Transaction executed - BuddyLink Member created', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+
+	return true;
 }
 
 /**
@@ -114,9 +133,8 @@ async function createBuddyLinkMember(connection: Connection, multisigPda: Public
  * @param devAccount Solana account that is going to pay for all this
  * @returns 
  */
-async function transferFromVault(connection: Connection, multisigPda: PublicKey, devAccount: Keypair) {
+async function transferFromVault(connection: Connection, multisigPda: PublicKey, devAccount: Keypair): Promise<boolean> {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
-	console.log('Vault account:', vaultPda.toString());
 
 	// Get the Transfer instruction
 	let instructions: TransactionInstruction[];
@@ -124,28 +142,36 @@ async function transferFromVault(connection: Connection, multisigPda: PublicKey,
 		// The transfer is being signed from the Squads Vault, that is why we use the VaultPda
 		instructions = [await getTransferSolInstruction(vaultPda, devAccount.publicKey, 0.01)];
 	} catch (err) {
-		console.error(err);
-		return;
+		log(err as string, LogType.ERROR);
+		return false;
 	}
 
 	// Create a MultiSig transaction using the Transfer instructions
-	let { signature, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, devAccount);
-	console.log('Transfer - Transaction created:', signature);
-
-	// const proposal = await getProposalDetails(connection, multisigPda, transactionIndex);
-	// console.log('Proposal:', JSON.stringify(proposal, undefined, ' '));
+	let { signatures, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, devAccount);
+	log('Transaction & Proposal created for SOL Transfer', LogType.HIGHLIGHT);
+	log(signatures[0], LogType.SIGNATURE);
+	log(signatures[1], LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Approve the transaction
-	signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
-	console.log('Transfer - Transaction approved:', signature);
+	let signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	log('Proposal approved', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Wire some funds to the Vault
 	signature = await transferSol(connection, devAccount, vaultPda, 0.01);
-	console.log('Transfer - Funds transfered to Vault:', signature);
+	log('The Vault was funded', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Execute the transaction
 	signature = await executeTransaction(connection, multisigPda, transactionIndex, devAccount);
-	console.log('Transfer - Transaction executed:', signature);
+	log('Transaction executed - SOL Transfer complete', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+
+	return true;
 }
 
 /**
@@ -158,19 +184,51 @@ async function transferFromVault(connection: Connection, multisigPda: PublicKey,
  * @returns 
  */
 async function updateSquadThreshold(connection: Connection, multisigPda: PublicKey, devAccount: Keypair, threshold: number) {
-	let { signature, transactionIndex } = await createThresholdUpdateProposal(
+	let { signatures, transactionIndex } = await createThresholdUpdateProposal(
 		connection,
 		multisigPda,
 		devAccount,
 		threshold
 	);
-	console.log('Threshold Update - Proposal created:', signature);
-
+	log(`Transaction & Proposal created for Threshold change (to ${threshold})`, LogType.HIGHLIGHT);
+	log(signatures[0], LogType.SIGNATURE);
+	log(signatures[1], LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+	
 	// Approve the transaction
-	signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
-	console.log('Threshold Update - Transaction approved:', signature);
+	let signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	log('Proposal approved', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Execute the transaction
 	signature = await executeConfigTransaction(connection, multisigPda, transactionIndex, devAccount);
-	console.log('Threshold Update - Transaction executed:', signature);
+	log('Transaction executed - Threshold was updated', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+}
+
+/**
+ * Create and execute a proposal to limit the devAccount's permissions to 'Initiate' only
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param devAccount Solana account that is going to pay for all this
+ */
+async function limitDevAccountPermissions(connection: Connection, multisigPda: PublicKey, devAccount: Keypair) {
+	let { signature, transactionIndex } = await createPermissionChangeProposal(
+		connection,
+		multisigPda,
+		devAccount,
+		new PublicKey('BqwQRpJkQSabqr1A9kU7dTVme7eg8wkquAkWT3oAtzXq'), //devAccount.publicKey,
+		Permissions.fromPermissions([Permission.Initiate])
+	);
+	console.log('Permissions Downgrade - Proposal created:', signature);
+
+	signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	console.log('Permissions Downgrade - Transaction approved:', signature);
+
+	// Execute the transaction
+	signature = await executeConfigTransaction(connection, multisigPda, transactionIndex, devAccount);
+	console.log('Permissions Downgrade - Transaction executed:', signature);
 }

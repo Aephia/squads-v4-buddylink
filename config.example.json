@@ -1,4 +1,5 @@
 {
+	"mode": "local",
 	"rpc": {
 		"mainnet": "https://api.mainnet-beta.solana.com",
 		"devnet": "https://devnet.solana.com",

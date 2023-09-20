@@ -2,6 +2,7 @@ import {
 	Connection,
 	Keypair,
 	PublicKey,
+	SystemProgram,
 	TransactionInstruction,
 	TransactionMessage,
 	TransactionSignature,
@@ -9,12 +10,12 @@ import {
 } from '@solana/web3.js';
 import * as multisig from '@sqds/multisig/lib/index.js';
 import { confirmTransaction } from '../utils.js';
-const { Permissions } = multisig.types;
+import { Permissions } from '@sqds/multisig/lib/types.js';
 import { Multisig } from '@sqds/multisig/lib/generated/accounts/Multisig.js';
 import { Proposal } from '@sqds/multisig/lib/generated/accounts/Proposal.js';
+import { createMultisigRemoveMemberInstruction } from '@sqds/multisig/lib/generated/instructions/multisigRemoveMember.js';
 import { translateAndThrowAnchorError } from '@sqds/multisig/lib/errors.js';
 import { getSetComputeLimitInstruction } from './common.js';
-// const { Multisig, Proposal } = multisig.accounts;
 
 /**
  * Create a Squad where all members have max permissions, and there is no timelock and no configAuhority
@@ -75,7 +76,7 @@ export async function createSquadProposal(
 	multisigPda: PublicKey,
 	instructions: TransactionInstruction[],
 	proposingMember: Keypair
-): Promise<{ signature: TransactionSignature; transactionIndex: bigint }> {
+): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
 
@@ -86,7 +87,7 @@ export async function createSquadProposal(
 		instructions,
 	});
 
-	let signature = await multisig.rpc.vaultTransactionCreate({
+	const txSignature = await multisig.rpc.vaultTransactionCreate({
 		connection,
 		feePayer: proposingMember,
 		multisigPda,
@@ -96,21 +97,17 @@ export async function createSquadProposal(
 		ephemeralSigners: 0,
 		transactionMessage,
 	});
+	await confirmTransaction(connection, txSignature);
 
-	console.log('Vault Transaction created: ', signature);
-	await confirmTransaction(connection, signature);
-
-	signature = await multisig.rpc.proposalCreate({
+	const propSignature = await multisig.rpc.proposalCreate({
 		connection,
 		feePayer: proposingMember,
 		multisigPda,
 		transactionIndex,
 		creator: proposingMember,
 	});
-
-	console.log('Proposal created: ', signature);
-	await confirmTransaction(connection, signature);
-	return { signature, transactionIndex };
+	await confirmTransaction(connection, propSignature);
+	return { signatures: [txSignature, propSignature], transactionIndex };
 }
 
 export async function approveProposal(
@@ -220,10 +217,9 @@ export async function createThresholdUpdateProposal(
 	multisigPda: PublicKey,
 	proposingMember: Keypair,
 	newThreshold: number
-): Promise<{ signature: TransactionSignature; transactionIndex: bigint }> {
+): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
-	console.log(transactionIndex);
-	let signature = await multisig.rpc.configTransactionCreate({
+	const txSignature = await multisig.rpc.configTransactionCreate({
 		connection,
 		feePayer: proposingMember,
 		multisigPda,
@@ -236,7 +232,79 @@ export async function createThresholdUpdateProposal(
 			},
 		],
 	});
+	await confirmTransaction(connection, txSignature);
 
+	const propSignature = await multisig.rpc.proposalCreate({
+		connection,
+		feePayer: proposingMember,
+		multisigPda,
+		transactionIndex,
+		creator: proposingMember,
+	});
+
+	await confirmTransaction(connection, propSignature);
+	return { signatures: [txSignature, propSignature], transactionIndex };
+}
+
+/**
+ * Create a proposal to update a member's permissions
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param proposingMember The proposing Solana account
+ * @param targetMember The member whose permissions need to be altered
+ * @param newPermissions The new permissions for targetMember
+ * @returns The signature of the proposal creation and related transaction index
+ */
+export async function createPermissionChangeProposal(
+	connection: Connection,
+	multisigPda: PublicKey,
+	proposingMember: Keypair,
+	targetMember: PublicKey,
+	newPermissions: Permissions,
+): Promise<{ signature: TransactionSignature; transactionIndex: bigint }> {
+	const vaultPda = getVaultPdaForMultiSig(multisigPda);
+	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
+
+	// const removeMemberInstruction = getRemoveMemberInstruction(multisigPda, proposingMember.publicKey, targetMember);
+	const addMemberInstruction = getAddMemberInstruction(
+		multisigPda,
+		proposingMember.publicKey,
+		targetMember,
+		newPermissions
+	);
+
+	// Here we are adding all the instructions that we want to be executed in our transaction
+	const transactionMessage = new TransactionMessage({
+		payerKey: vaultPda,
+		recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
+		instructions: [/*removeMemberInstruction,*/ addMemberInstruction],
+	});
+
+	let signature = await multisig.rpc.vaultTransactionCreate({
+		connection,
+		feePayer: proposingMember,
+		multisigPda,
+		transactionIndex,
+		creator: proposingMember.publicKey,
+		vaultIndex: 0,
+		ephemeralSigners: 0,
+		transactionMessage,
+	});
+
+	// let signature = await multisig.rpc.configTransactionCreate({
+	// 	connection,
+	// 	feePayer: proposingMember,
+	// 	multisigPda,
+	// 	transactionIndex,
+	// 	creator: proposingMember.publicKey,
+	// 	actions: [
+	// 		{
+	// 			__kind: 'ChangeThreshold',
+	// 			newThreshold,
+	// 		},
+	// 	],
+	// });
 	await confirmTransaction(connection, signature);
 
 	signature = await multisig.rpc.proposalCreate({
@@ -251,6 +319,35 @@ export async function createThresholdUpdateProposal(
 	return { signature, transactionIndex };
 }
 
+export function getAddMemberInstruction(multisigPda: PublicKey, rentPayer: PublicKey, memberKey: PublicKey, permissions: Permissions): TransactionInstruction {
+	return multisig.instructions.multisigAddMember({
+		multisigPda,
+		configAuthority: SystemProgram.programId,
+		rentPayer,
+		newMember: { key: memberKey, permissions },
+	});
+}
+
+export function getRemoveMemberInstruction(
+	multisigPda: PublicKey,
+	rentPayer: PublicKey,
+	removeKey: PublicKey,
+): TransactionInstruction {
+	return createMultisigRemoveMemberInstruction(
+		{
+			multisig: multisigPda,
+			configAuthority: null!,
+			rentPayer,
+			systemProgram: SystemProgram.programId,
+		},
+		{
+			args: {
+				member: removeKey,
+				memo: null,
+			},
+		}
+	);
+}
 
 /**
  * Derive the PDA for the Squads Vault

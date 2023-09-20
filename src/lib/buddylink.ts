@@ -9,9 +9,8 @@ const PROGRAM_ID_DEVNET = '9zE4EQ5tJbEeMYwtS2w8KrSHTtTW4UPqwfbBSEkUrNCA';
 export async function getCreateMemberInstructions(connection: Connection, signerKey: PublicKey, orgName: string, memberName: string, env = Environment.PROD): Promise<TransactionInstruction[]> {
 	const client = getClient(connection, signerKey, env);
 	const isAvailable = await client.member.isMemberAvailable(orgName, memberName);
+	
 	if (!isAvailable) {
-		// const member = await client.member.getByName(orgName, memberName);
-		// console.log(member);
 		throw `MemberName "${memberName}" is not available`;
 	}
 	const instructions = [];

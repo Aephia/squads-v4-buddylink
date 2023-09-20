@@ -11,6 +11,7 @@ export interface Settings {
 }
 
 export interface Configuration {
+	mode: string;
 	rpc: {
 		mainnet: string;
 		devnet: string;
@@ -37,4 +38,13 @@ export interface SquadConfig {
 export interface BuddyLinkConfig {
 	orgName: string;
 	memberName: string;
+}
+
+export enum LogType {
+	NORMAL,
+	SIGNATURE,
+	DETAILS,
+	HIGHLIGHT,
+	SPOTLIGHT,
+	ERROR,
 }
