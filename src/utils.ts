@@ -29,7 +29,6 @@ export async function readJSONFile<T = Object>(filePath: string): Promise<T> {
 		const fileContents = await readFile(filePath, 'utf-8');
 		return JSON.parse(fileContents);
 	} catch (error) {
-		console.error(`Failed to read ${filePath}: ${error}`);
 		throw error;
 	}
 }
