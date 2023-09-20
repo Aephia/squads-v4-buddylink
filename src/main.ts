@@ -9,7 +9,7 @@ import { airdrop, getNewConnection } from './lib/common.js';
 import { Configuration, Environment, LogType, Settings } from './types.js';
 import { createJSONFile, getScriptFolder, log, readJSONFile } from './utils.js';
 import { createNewSquadWithBuddyLink } from './createSquad.js';
-import { getClaimableBalance, getMember, getMemberStatistics, getTreasuries } from './lib/buddylink.js';
+import { getClaimableBalance, getMember, getMemberStatistics, getProfile, getTreasuries } from './lib/buddylink.js';
 
 const config = await getConfig();
 const env = getEnv(config.mode);
@@ -60,11 +60,8 @@ async function initialize() {
 
 async function showBuddyLinkData(connection: Connection, settings: Settings): Promise<void> {
 	const vaultPda = new PublicKey(settings.vaultPda!);
-	const treasuries = await getTreasuries(connection, vaultPda, env);
-	const balances = await Promise.all(treasuries.map((treasury) => getClaimableBalance(treasury)));
-	const claimableBalanceNum = balances.filter((balance) => !!balance).length;
-
 	const member = await getMember(connection, config.buddyLink.orgName, config.buddyLink.memberName, env);
+	
 	if (member) {
 		log('Referral Link:', LogType.HIGHLIGHT);
 		log(`https://play.staratlas.com/?r=${member?.account.name}`, LogType.SPOTLIGHT);
@@ -73,6 +70,29 @@ async function showBuddyLinkData(connection: Connection, settings: Settings): Pr
 	}
 	log('', LogType.NORMAL);
 
+	log('Buddy Link:', LogType.HIGHLIGHT);
+	const profile = await getProfile(connection, vaultPda, env);
+	if (profile) {
+		log(profile?.account.authority.toString(), LogType.DETAILS, 'Authority:');
+	} else {
+		log('BuddyLink Profile does not exist!', LogType.ERROR);
+	}
+
+	if (member) {
+		try {
+			const stats = await getMemberStatistics(member!);
+			log('Member Stats are present - All systems go!', LogType.DETAILS);
+			// console.log(stats);
+		} catch (err) {
+			log('An error occured while fetching the BuddyLink Member Stats!', LogType.ERROR);
+			log(err as string, LogType.NORMAL);
+		}
+	}
+	log('', LogType.NORMAL);
+
+	const treasuries = await getTreasuries(connection, vaultPda, env);
+	const balances = await Promise.all(treasuries.map((treasury) => getClaimableBalance(treasury)));
+	const claimableBalanceNum = balances.filter((balance) => !!balance).length;
 	if (!treasuries.length) {
 		log('No treasuries could be found!', LogType.ERROR);
 	} else if (!claimableBalanceNum) {
@@ -86,16 +106,7 @@ async function showBuddyLinkData(connection: Connection, settings: Settings): Pr
 	}
 	log('', LogType.NORMAL);
 
-	if (member) {
-		try {
-			const stats = await getMemberStatistics(member!);
-			log('Dumping raw Member Stats:', LogType.HIGHLIGHT);
-			console.log(stats);
-		} catch (err) {
-			log('An error occured while fetching the BuddyLink Member Stats!', LogType.ERROR);
-			log(err as string, LogType.NORMAL);
-		}
-	}
+	
 }
 
 async function getDevAccount(connection: Connection): Promise<Keypair> {

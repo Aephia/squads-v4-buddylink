@@ -16,6 +16,7 @@ import {
 	executeTransactionWithComputeLimit,
 	executeConfigTransaction,
 	createPermissionChangeProposal,
+	createCombinedPermissionChangeAndThresholdProposal,
 } from './lib/squads.js';
 import { BuddyLinkConfig, Environment, LogType, SquadConfig } from './types.js';
 import { Permissions, Permission } from '@sqds/multisig/lib/types.js';
@@ -64,8 +65,7 @@ export async function createNewSquadWithBuddyLink(
 		}
 	}
 	
-	await updateSquadThreshold(connection, multisigPda, creator, squadConfig.threshold);
-	// await limitDevAccountPermissions(connection, multisigPda, creator);
+	await tidyUpSquad(connection, multisigPda, creator, squadConfig.threshold);
 
 	return {
 		createKey,
@@ -180,21 +180,26 @@ async function transferFromVault(connection: Connection, multisigPda: PublicKey,
  * @param connection RPC Connection
  * @param multisigPda The MultiSig PDA
  * @param devAccount Solana account that is going to pay for all this
- * @param threshold The new threshold
+ * @param newThreshold The new threshold
  * @returns 
  */
-async function updateSquadThreshold(connection: Connection, multisigPda: PublicKey, devAccount: Keypair, threshold: number) {
+async function updateSquadThreshold(
+	connection: Connection,
+	multisigPda: PublicKey,
+	devAccount: Keypair,
+	newThreshold: number
+) {
 	let { signatures, transactionIndex } = await createThresholdUpdateProposal(
 		connection,
 		multisigPda,
 		devAccount,
-		threshold
+		newThreshold
 	);
-	log(`Transaction & Proposal created for Threshold change (to ${threshold})`, LogType.HIGHLIGHT);
+	log(`Transaction & Proposal created for Threshold change (to ${newThreshold})`, LogType.HIGHLIGHT);
 	log(signatures[0], LogType.SIGNATURE);
 	log(signatures[1], LogType.SIGNATURE);
 	log('', LogType.NORMAL);
-	
+
 	// Approve the transaction
 	let signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
 	log('Proposal approved', LogType.HIGHLIGHT);
@@ -216,19 +221,67 @@ async function updateSquadThreshold(connection: Connection, multisigPda: PublicK
  * @param devAccount Solana account that is going to pay for all this
  */
 async function limitDevAccountPermissions(connection: Connection, multisigPda: PublicKey, devAccount: Keypair) {
-	let { signature, transactionIndex } = await createPermissionChangeProposal(
+	let { signatures, transactionIndex } = await createPermissionChangeProposal(
 		connection,
 		multisigPda,
 		devAccount,
-		new PublicKey('BqwQRpJkQSabqr1A9kU7dTVme7eg8wkquAkWT3oAtzXq'), //devAccount.publicKey,
+		devAccount.publicKey,
 		Permissions.fromPermissions([Permission.Initiate])
 	);
-	console.log('Permissions Downgrade - Proposal created:', signature);
+	log(`Transaction & Proposal created for Permission Downgrade`, LogType.HIGHLIGHT);
+	log(signatures[0], LogType.SIGNATURE);
+	log(signatures[1], LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
-	signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
-	console.log('Permissions Downgrade - Transaction approved:', signature);
+	// Approve the transaction
+	let signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	log('Proposal approved', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 
 	// Execute the transaction
 	signature = await executeConfigTransaction(connection, multisigPda, transactionIndex, devAccount);
-	console.log('Permissions Downgrade - Transaction executed:', signature);
+	log('Transaction executed - Permissions were downgraded', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+}
+
+/**
+ * Create and execute a proposal to:
+ * - limit the devAccount's permissions to 'Initiate' only
+ * - update the Squad's threshold
+ * 
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param devAccount Solana account that is going to pay for all this
+ * @param threshold The new threshold
+ */
+async function tidyUpSquad(connection: Connection, multisigPda: PublicKey, devAccount: Keypair, newThreshold: number) {
+	let { signatures, transactionIndex } = await createCombinedPermissionChangeAndThresholdProposal(
+		connection,
+		multisigPda,
+		devAccount,
+		devAccount.publicKey,
+		Permissions.fromPermissions([Permission.Initiate]),
+		newThreshold
+	);
+	log(
+		`Transaction & Proposal created for Permission downgrade & Threshold change (to ${newThreshold})`,
+		LogType.HIGHLIGHT
+	);
+	log(signatures[0], LogType.SIGNATURE);
+	log(signatures[1], LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+
+	// Approve the transaction
+	let signature = await approveProposal(connection, multisigPda, transactionIndex, devAccount);
+	log('Proposal approved', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+
+	// Execute the transaction
+	signature = await executeConfigTransaction(connection, multisigPda, transactionIndex, devAccount);
+	log('Transaction executed - Permissions were downgraded & Threshold was updated', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
 }

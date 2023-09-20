@@ -2,7 +2,6 @@ import {
 	Connection,
 	Keypair,
 	PublicKey,
-	SystemProgram,
 	TransactionInstruction,
 	TransactionMessage,
 	TransactionSignature,
@@ -13,7 +12,6 @@ import { confirmTransaction } from '../utils.js';
 import { Permissions } from '@sqds/multisig/lib/types.js';
 import { Multisig } from '@sqds/multisig/lib/generated/accounts/Multisig.js';
 import { Proposal } from '@sqds/multisig/lib/generated/accounts/Proposal.js';
-import { createMultisigRemoveMemberInstruction } from '@sqds/multisig/lib/generated/instructions/multisigRemoveMember.js';
 import { translateAndThrowAnchorError } from '@sqds/multisig/lib/errors.js';
 import { getSetComputeLimitInstruction } from './common.js';
 
@@ -123,7 +121,6 @@ export async function approveProposal(
 		transactionIndex,
 		member: approvingMember,
 	});
-
 	await confirmTransaction(connection, signature);
 	return signature;
 }
@@ -142,7 +139,6 @@ export async function executeTransaction(
 		member: executingMmember.publicKey,
 		signers: [executingMmember],
 	});
-
 	await confirmTransaction(connection, signature);
 	return signature;
 }
@@ -178,7 +174,6 @@ export async function executeTransactionWithComputeLimit(
 	} catch (err) {
 		translateAndThrowAnchorError(err);
 	}
-
 	await confirmTransaction(connection, signature);
 	return signature;
 }
@@ -198,7 +193,6 @@ export async function executeConfigTransaction(
 		rentPayer: executingMember,
 		signers: [executingMember],
 	});
-
 	await confirmTransaction(connection, signature);
 	return signature;
 }
@@ -241,7 +235,6 @@ export async function createThresholdUpdateProposal(
 		transactionIndex,
 		creator: proposingMember,
 	});
-
 	await confirmTransaction(connection, propSignature);
 	return { signatures: [txSignature, propSignature], transactionIndex };
 }
@@ -262,91 +255,95 @@ export async function createPermissionChangeProposal(
 	proposingMember: Keypair,
 	targetMember: PublicKey,
 	newPermissions: Permissions,
-): Promise<{ signature: TransactionSignature; transactionIndex: bigint }> {
-	const vaultPda = getVaultPdaForMultiSig(multisigPda);
+): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
-
-	// const removeMemberInstruction = getRemoveMemberInstruction(multisigPda, proposingMember.publicKey, targetMember);
-	const addMemberInstruction = getAddMemberInstruction(
-		multisigPda,
-		proposingMember.publicKey,
-		targetMember,
-		newPermissions
-	);
-
-	// Here we are adding all the instructions that we want to be executed in our transaction
-	const transactionMessage = new TransactionMessage({
-		payerKey: vaultPda,
-		recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
-		instructions: [/*removeMemberInstruction,*/ addMemberInstruction],
-	});
-
-	let signature = await multisig.rpc.vaultTransactionCreate({
+	const txSignature = await multisig.rpc.configTransactionCreate({
 		connection,
 		feePayer: proposingMember,
 		multisigPda,
 		transactionIndex,
 		creator: proposingMember.publicKey,
-		vaultIndex: 0,
-		ephemeralSigners: 0,
-		transactionMessage,
+		actions: [
+			{
+				__kind: 'RemoveMember',
+				oldMember: targetMember,
+			},
+			{
+				__kind: 'AddMember',
+				newMember: {
+					key: targetMember,
+					permissions: newPermissions,
+				},
+			},
+		],
 	});
+	await confirmTransaction(connection, txSignature);
 
-	// let signature = await multisig.rpc.configTransactionCreate({
-	// 	connection,
-	// 	feePayer: proposingMember,
-	// 	multisigPda,
-	// 	transactionIndex,
-	// 	creator: proposingMember.publicKey,
-	// 	actions: [
-	// 		{
-	// 			__kind: 'ChangeThreshold',
-	// 			newThreshold,
-	// 		},
-	// 	],
-	// });
-	await confirmTransaction(connection, signature);
-
-	signature = await multisig.rpc.proposalCreate({
+	const propSignature = await multisig.rpc.proposalCreate({
 		connection,
 		feePayer: proposingMember,
 		multisigPda,
 		transactionIndex,
 		creator: proposingMember,
 	});
-
-	await confirmTransaction(connection, signature);
-	return { signature, transactionIndex };
+	await confirmTransaction(connection, propSignature);
+	return { signatures: [txSignature, propSignature], transactionIndex };
 }
 
-export function getAddMemberInstruction(multisigPda: PublicKey, rentPayer: PublicKey, memberKey: PublicKey, permissions: Permissions): TransactionInstruction {
-	return multisig.instructions.multisigAddMember({
-		multisigPda,
-		configAuthority: SystemProgram.programId,
-		rentPayer,
-		newMember: { key: memberKey, permissions },
-	});
-}
-
-export function getRemoveMemberInstruction(
+/**
+ * Create a proposal to update a member's permissions and change the threshold in one go
+ *
+ * @param connection RPC Connection
+ * @param multisigPda The MultiSig PDA
+ * @param proposingMember The proposing Solana account
+ * @param targetMember The member whose permissions need to be altered
+ * @param newPermissions The new permissions for targetMember
+ * @returns The signature of the proposal creation and related transaction index
+ */
+export async function createCombinedPermissionChangeAndThresholdProposal(
+	connection: Connection,
 	multisigPda: PublicKey,
-	rentPayer: PublicKey,
-	removeKey: PublicKey,
-): TransactionInstruction {
-	return createMultisigRemoveMemberInstruction(
-		{
-			multisig: multisigPda,
-			configAuthority: null!,
-			rentPayer,
-			systemProgram: SystemProgram.programId,
-		},
-		{
-			args: {
-				member: removeKey,
-				memo: null,
+	proposingMember: Keypair,
+	targetMember: PublicKey,
+	newPermissions: Permissions,
+	newThreshold: number
+): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
+	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
+	const txSignature = await multisig.rpc.configTransactionCreate({
+		connection,
+		feePayer: proposingMember,
+		multisigPda,
+		transactionIndex,
+		creator: proposingMember.publicKey,
+		actions: [
+			{
+				__kind: 'RemoveMember',
+				oldMember: targetMember,
 			},
-		}
-	);
+			{
+				__kind: 'AddMember',
+				newMember: {
+					key: targetMember,
+					permissions: newPermissions,
+				},
+			},
+			{
+				__kind: 'ChangeThreshold',
+				newThreshold,
+			},
+		],
+	});
+	await confirmTransaction(connection, txSignature);
+
+	const propSignature = await multisig.rpc.proposalCreate({
+		connection,
+		feePayer: proposingMember,
+		multisigPda,
+		transactionIndex,
+		creator: proposingMember,
+	});
+	await confirmTransaction(connection, propSignature);
+	return { signatures: [txSignature, propSignature], transactionIndex };
 }
 
 /**

@@ -44,6 +44,11 @@ export async function getTreasuries(connection: Connection, signerKey: PublicKey
 	return [];
 }
 
+export async function getProfile(connection: Connection, signerKey: PublicKey, env = Environment.PROD) {
+	const client = getClient(connection, undefined, env);
+	return await client.buddy.getProfile(signerKey);
+}
+
 export async function getClaimableBalance(treasury: Treasury) {
 	return await treasury.getClaimableBalance();
 }

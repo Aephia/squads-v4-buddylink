@@ -17,18 +17,18 @@ If you are not a coder, you will need to download NodeJS first.
 ## Create DEV-account
 In the interest of security, you will need to create a new Solana account (wallet). You do not need a new seed, simply creating a new account is enough (but this is up to you of course).
 
-Now, you will need to fund it with 0.1 SOL (or thereabouts). Funding it can be done by simply sending it a little SOL from one of your other accounts.
+Now, you will need to fund it with 0.15 SOL (or thereabouts). Funding it can be done by simply sending it a little SOL from one of your other accounts. 0.1 SOL will be sent to the Multi-Sig Vault, as the Vault needs to pay for transactions as well.
 
 ## Steps
 
 1. Get access to a proper RPC server. There are several easy and free options. Here is one:
- - Go to https://www.hellomoon.io/developers
+ - Go to https://dev.helius.xyz/dashboard/app
  - Connect a random Wallet
  - Sign the message
- - Click "Start building for free".
  - Take note of the RPC addresses
 2. If you have not done so already, Create a DEV-account by following the steps in the section above. Export the private key for the next step. Check your wallet docs to figure out how.
 3. Duplicate `config.example.json` to `config.json` and make sure to overwrite the dummy data:
+ - `rpc`: overwrite the mainnet and devnet values with the ones gotten in the first step
  - `mainnetAccount`: the public & private key of your dev-only account
  - `squads.members`: Array of public keys you want to include in the Squad
  - `squads.threshold`: The minimum number of approvals required to execute a transaction
@@ -86,3 +86,11 @@ You should now see "Wrote program to buddylink.so"
 You should now see "Wrote program to squads.so"
 5. Run `solana-test-validator --bpf-program BUDDYtQp7Di1xfojiCSVDksiYLQx511DPdj2nbtG9Yu5 buddylink.so --bpf-program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf squads.so --reset`
 6. In your `config.json` set the `mode` to "local"
+
+
+## Config
+
+Valid options for `mode` are:
+- local
+- dev
+- prod
