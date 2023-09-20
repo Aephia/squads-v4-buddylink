@@ -108,7 +108,7 @@ async function createBuddyLinkMember(connection: Connection, multisigPda: Public
 	log('', LogType.NORMAL);
 
 	// Wire some funds to the Vault
-	signature = await transferSol(connection, creator, vaultPda, 0.1);
+	signature = await transferSol(connection, creator, vaultPda, 0.04);
 	log('The Vault was funded', LogType.HIGHLIGHT);
 	log(signature, LogType.SIGNATURE);
 	log('', LogType.NORMAL);

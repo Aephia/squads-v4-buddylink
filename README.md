@@ -17,7 +17,7 @@ If you are not a coder, you will need to download NodeJS first.
 ## Create DEV-account
 In the interest of security, you will need to create a new Solana account (wallet). You do not need a new seed, simply creating a new account is enough (but this is up to you of course).
 
-Now, you will need to fund it with 0.15 SOL (or thereabouts). Funding it can be done by simply sending it a little SOL from one of your other accounts. 0.1 SOL will be sent to the Multi-Sig Vault, as the Vault needs to pay for transactions as well.
+Now, you will need to fund it with at least 0.07 SOL (more is fine, but not required). Funding it can be done by simply sending it SOL from one of your other accounts. Note that from this 0.07 SOL, 0.04 SOL will be sent to the Multi-Sig Vault, as the Vault needs to pay for transactions as well.
 
 ## Steps
 
