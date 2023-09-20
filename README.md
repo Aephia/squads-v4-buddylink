@@ -1,11 +1,23 @@
-# Squad-v4-buddylink
+# Squads-v4-BuddyLink
 
-Set up a brand new Squad (Version 4), with a Buddylink (Version 4) referral link.
+Set up a brand new Squads MultiSig (Version 4), with a Buddylink (Version 4) referral link.
 
-This script creates a brand new Squads V4 multisig and creates a BuddyLink referral attached to the multisig's Vault.
+Note: Squads V4 offers a cool Permission system, but for the sake of keeping things simple this script will simply give each member full permissions.
+If this is not your intent, feel free to implement support for custom permissions and submit a PR.
 
-Squads V4 will offer a Permission system, but for the sake of keeping things simple this script assings full permissions
-to all members. If this is not your intent, feel free to implement support for custom permissions and please do submit a PR.
+## Prepare
+
+If you are not a coder, you will need to download NodeJS first.
+
+1. Go to https://nodejs.org/en and download the latest LTS version (left button)
+2. Now click the green `<> Code`-button at the top of this page and select "Download ZIP"
+3. Unzip at a location of your choosing
+4. Open a CLI tool (Terminal on Mac), navigate to the folder and follow the steps in the next section
+
+## Create DEV-account
+In the interest of security, you will need to create a new Solana account (wallet). You do not need a new seed, simply creating a new account is enough (but this is up to you of course).
+
+Now, you will need to fund it with 0.1 SOL (or thereabouts). Funding it can be done by simply sending it a little SOL from one of your other accounts.
 
 ## Steps
 
@@ -15,33 +27,35 @@ to all members. If this is not your intent, feel free to implement support for c
  - Sign the message
  - Click "Start building for free".
  - Take note of the RPC addresses
-2. Create a (new) dev-only Solana account, fund it with 0.1 SOL (or thereabouts) and export the private key
+2. If you have not done so already, Create a DEV-account by following the steps in the section above. Export the private key for the next step. Check your wallet docs to figure out how.
 3. Duplicate `config.example.json` to `config.json` and make sure to overwrite the dummy data:
- - `mainnetAccount``: the public & private key of your dev-only account
- - `squads.members``: Array of public keys you want to include in the Squad
- - `squads.threshold``: The minimum number of approvals required to execute a transaction
- - `buddyLink.memberName`: the name (alphanumeric values only! no spaces or dashes) you want to use for your referral link
-4. It is recommended to repeat the Solana account creation and supply a different address in order to have a separate devnet-account
- - You can fund the devnet account here: https://solfaucet.com
- - Note: You can use the same account as mainnet of course, but having a separate one might be safer
- - enter the devnet account details in the `config.json`'s `devnetAccount` property.
-5. Run `npm i`
-6. Run `npm run build` followed by `npm run execute`
+ - `mainnetAccount`: the public & private key of your dev-only account
+ - `squads.members`: Array of public keys you want to include in the Squad
+ - `squads.threshold`: The minimum number of approvals required to execute a transaction
+ - `buddyLink.memberName`: the name you want to use for your referral link. This needs to be between 3 and 18 lowercase characters. Only alphanumeric values are allowed, no spaces or dashes!
+4. You will need to supply a devnet DEV-account as well. It is recommended to repeat the Solana account creation (See "Create DEV-account") to have a different, separate devnet-account. You can use the same account as mainnet of course, but having a separate one might be safer. Once you created the devnet-only account:
+ - You need to fund it. You can fund devnet accounts here: https://solfaucet.com
+ - Export the account's private key and enter the account details in the `config.json`'s `devnetAccount` property.
+5. Run `npm i` to install all the dependcies for the project. [You only need to do this once if successful]
+6. Run `npm run build` to build the project. [You only need to do this once if successful]
+7. Run `npm run execute` to execute the script
  
 The above will run the whole thing on devnet. If everything worked as intended, you should:
 - See a referral link in the output
 - Have a new `settings.json` file in the root-folder of the project
 
 You can then continue repeating this on mainnet:
-7. Delete the `settings.json` file that now was created.
-8. In your `config.json`-file, change the `mode` to "prod"
+8. Delete the `settings.json` file that now was created
+9. In your `config.json`-file, change the `mode` to "prod"
 
 ## What It Does
 
-1. Create a new Squad with the members supplied, but adds the dev-only account. The Squad is being created with its threshold set to 1 (this is temporary, but allows the dev-account to run the show for now)
-2. Create a BuddyLink referral proposal in the Squad
-3. Use the dev-only account to approve & execute the transaction
-4. Update the threshold of the Squad to the value provided in config.json
+No doubt you'd like to know what happens when you execute the script. In short, the following:
+
+1. Creates a new Squad with the members supplied, but adds the dev-account you created on top of these. The Squad is being created with its threshold set to 1 (this is temporary), as that allows the dev-account to run the show for now
+2. Creates a BuddyLink referral proposal in the Squad with the memberName you provided
+3. Uses the dev-account to approve & execute the transaction
+4. Updates the threshold of the Squad to the value provided in config.json
 
 [WIP:]
 5. Create a proposal to limit permissions of dev-only account to `Initiate` only.
