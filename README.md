@@ -56,11 +56,16 @@ No doubt you'd like to know what happens when you execute the script. In short, 
 2. Creates a BuddyLink referral proposal in the Squad with the memberName you provided
 3. Uses the dev-account to approve & execute the transaction
 4. Updates the threshold of the Squad to the value provided in config.json
-
-[WIP:]
-5. Create a proposal to limit permissions of dev-only account to `Initiate` only.
+5. Limit permission of the dev-only account to `Initiate` only. This limits the account to only be able to create proposals and nothing else.
 
 Lastly, it stores your vault details in a `settings.json` file.
+
+## Squad
+
+You can view your Squad's setup using the following URL:
+https://v4.squads.so/squads/<your Vault PDA>/members
+
+If all goes well, you see all the members you provided + your dev-account. Note that your dev-account has limited permissions.
 
 ## Next
 
@@ -68,8 +73,7 @@ If everything went as planned, leave the `settings.json` file intact. If you run
 
 ## Future Development
 
-- Finalize workflow step 5
-- Add code to create a transaction+proposal to claim all earned BuddyLink assets. This is why the devAccount will get limited permissions, and is not simply removed. 
+- Add code to create a transaction+proposal to claim all earned BuddyLink assets. This is why the devAccount gets limited permissions, and is not simply beingremoved. 
 - Add code to claim GoldenTickets
 
 ## Development
