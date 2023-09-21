@@ -100,13 +100,13 @@ async function showBuddyLinkData(connection: Connection, settings: Settings): Pr
 	} else if (claimableBalanceNum) {
 		log(`${treasuries.length} treasuries found - ${claimableBalanceNum} claimable balances:`, LogType.HIGHLIGHT);
 		balances.forEach((balance, idx) => {
-			const symbol = getTokenSymbolForMint(treasuries[idx].account.mint.toString());
-			log(`${balance}`, LogType.DETAILS, `${symbol}:`);
+			const mint = treasuries[idx].account.mint.toString();
+			const symbol = getTokenSymbolForMint(mint);
+			const prettyBalance = getPrettyBalanceForMint(balance, mint);
+			log(`${prettyBalance}`, LogType.DETAILS, `${symbol}:`);
 		});
 	}
 	log('', LogType.NORMAL);
-
-	
 }
 
 async function getDevAccount(connection: Connection): Promise<Keypair> {
@@ -128,10 +128,18 @@ async function getDevAccount(connection: Connection): Promise<Keypair> {
 }
 
 function getTokenSymbolForMint(mint: string) {
-	if (mint === 'USDCwtCSCAv6wTZKwC924tJqndNEJyx7NYQufZH7p3K') {
+	if (mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
 		return 'USDC';
 	} else if (mint === 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx') {
 		return 'ATLAS';
+	}
+}
+
+function getPrettyBalanceForMint(balance: number, mint: string) {
+	if (mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
+		return balance / Math.pow(10, 6);
+	} else if (mint === 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx') {
+		return balance / Math.pow(10, 8);
 	}
 }
 

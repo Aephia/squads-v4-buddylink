@@ -8,6 +8,7 @@
 		"dev": "ts-node --experimental-specifier-resolution=node ./src/main.ts ",
 		"build": "tsc",
 		"execute": "node --experimental-specifier-resolution=node --no-warnings ./lib/main.js",
+		"bonus": "node --experimental-specifier-resolution=node --no-warnings ./lib/bonus.js > aep.txt",
 		"postinstall": "patch-package"
 	},
 	"devDependencies": {

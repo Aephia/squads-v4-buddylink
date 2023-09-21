@@ -94,22 +94,22 @@ async function createBuddyLinkMember(connection: Connection, multisigPda: Public
 		return false;
 	}
 
+	// Wire some funds to the Vault
+	let signature = await transferSol(connection, creator, vaultPda, 0.04);
+	log('The Vault was funded', LogType.HIGHLIGHT);
+	log(signature, LogType.SIGNATURE);
+	log('', LogType.NORMAL);
+
 	// Create a MultiSig transaction using the BuddyLink instructions
 	let { signatures, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator);
 	log('Transaction & Proposal created for BuddyLink Creation', LogType.HIGHLIGHT);
 	log(signatures[0], LogType.SIGNATURE);
 	log(signatures[1], LogType.SIGNATURE);
 	log('', LogType.NORMAL);
-	
-	// Approve the transaction
-	let signature = await approveProposal(connection, multisigPda, transactionIndex, creator);
-	log('Proposal approved', LogType.HIGHLIGHT);
-	log(signature, LogType.SIGNATURE);
-	log('', LogType.NORMAL);
 
-	// Wire some funds to the Vault
-	signature = await transferSol(connection, creator, vaultPda, 0.04);
-	log('The Vault was funded', LogType.HIGHLIGHT);
+	// Approve the transaction
+	signature = await approveProposal(connection, multisigPda, transactionIndex, creator);
+	log('Proposal approved', LogType.HIGHLIGHT);
 	log(signature, LogType.SIGNATURE);
 	log('', LogType.NORMAL);
 
