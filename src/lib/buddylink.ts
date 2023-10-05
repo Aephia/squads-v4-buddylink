@@ -1,5 +1,5 @@
 import { Connection, Keypair, PublicKey, Signer, Transaction, TransactionInstruction } from '@solana/web3.js';
-import { Client, Treasury } from '@ladderlabs/buddy-sdk';
+import { Buddy, Client, Treasury } from '@ladderlabs/buddy-sdk';
 import { Environment } from '../types.js';
 import { confirmTransaction } from '../utils.js';
 import { Member, MemberStatisticsAccount } from '@ladderlabs/buddy-sdk/dist/esm/models/Member.js';
@@ -24,13 +24,19 @@ export async function getCreateMemberInstructions(connection: Connection, signer
 	return instructions;
 }
 
-export async function getMember(connection: Connection, orgName: string, memberName: string, env = Environment.PROD) {
-	const client = getClient(connection, undefined, env);
-	return await client.member.getByName(orgName, memberName);
+export async function getMember(
+	connection: Connection,
+	orgName: string,
+	memberName: string,
+	signerKey: PublicKey,
+	env = Environment.PROD
+) {
+	const client = getClient(connection, signerKey, env);
+	return client.member.getByName(orgName, memberName);
 }
 
 export async function getMemberStatistics(member: Member): Promise<MemberStatisticsAccount | null> {
-	return await member.getStatistics();
+	return member.getStatistics();
 }
 
 export async function getTreasuries(connection: Connection, signerKey: PublicKey, env = Environment.PROD): Promise<Treasury[]> {
@@ -38,28 +44,37 @@ export async function getTreasuries(connection: Connection, signerKey: PublicKey
 	const profile = await client.buddy.getProfile(signerKey);
 
 	if (profile) {
-		return await client.treasury.getAllByBuddy(profile?.account.pda);
+		return client.treasury.getAllByBuddy(profile?.account.pda);
 	}
 
 	return [];
 }
 
-export async function getProfile(connection: Connection, signerKey: PublicKey, env = Environment.PROD) {
-	const client = getClient(connection, undefined, env);
-	return await client.buddy.getProfile(signerKey);
+export async function getProfile(connection: Connection, signerKey: PublicKey, env = Environment.PROD): Promise<Buddy | null> {
+	const client = getClient(connection, signerKey, env);
+	return client.buddy.getProfile(signerKey);
 }
 
-export async function getClaimableBalance(treasury: Treasury) {
-	return await treasury.getClaimableBalance();
+export function getClaimableBalance(treasury: Treasury): Promise<number> {
+	return treasury.getClaimableBalance();
 }
 
-export async function getClaimTreasuryInstructions(treasury: Treasury) {
-	return await treasury.claim();
+export async function getClaimableTickets(member: Member): Promise<number> {
+	const stats = await member.getStatistics();
+	if (!stats?.totalReferrerVolume) {
+		return 0;
+	}
+
+	const pendingTickets = stats?.totalReferrerVolume.sub(stats?.numberOfClaimedRewardsInVolume ?? 0);
+	return pendingTickets.divn(500).divn(1e6).toNumber();
 }
 
-// Not yet tested
-export async function getClaimGoldenTicketInstructions(member: Member,) {
-	return await member.claimStarAtlas(1);
+export function getClaimTreasuryInstructions(treasury: Treasury): Promise<TransactionInstruction[]> {
+	return treasury.claim();
+}
+
+export async function getClaimGoldenTicketInstructions(member: Member, amount = 1): Promise<TransactionInstruction[]> {
+	return member.claimStarAtlas(amount);
 }
 
 export async function sendTransaction(

@@ -4,7 +4,7 @@ import {
 	PublicKey,
 	TransactionInstruction,
 } from '@solana/web3.js';
-import { getTransferSolInstruction, transferSol } from './lib/common.js';
+import { getTransferSolInstruction, transferSol } from './lib/solana.js';
 import { getCreateMemberInstructions } from './lib/buddylink.js';
 import {
 	createSquadProposal,
@@ -101,7 +101,7 @@ async function createBuddyLinkMember(connection: Connection, multisigPda: Public
 	log('', LogType.NORMAL);
 
 	// Create a MultiSig transaction using the BuddyLink instructions
-	let { signatures, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator);
+	let { signatures, transactionIndex } = await createSquadProposal(connection, multisigPda, instructions, creator, "Create a BuddyLink referral");
 	log('Transaction & Proposal created for BuddyLink Creation', LogType.HIGHLIGHT);
 	log(signatures[0], LogType.SIGNATURE);
 	log(signatures[1], LogType.SIGNATURE);

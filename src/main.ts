@@ -1,15 +1,11 @@
 import { resolve } from 'path';
-import {
-	Connection,
-	Keypair,
-	PublicKey,
-} from '@solana/web3.js';
+import { Connection, Keypair } from '@solana/web3.js';
 import bs58 from 'bs58';
-import { airdrop, getNewConnection } from './lib/common.js';
+import { airdrop, getNewConnection } from './lib/solana.js';
 import { Configuration, Environment, LogType, Settings } from './types.js';
 import { createJSONFile, getScriptFolder, log, readJSONFile } from './utils.js';
 import { createNewSquadWithBuddyLink } from './createSquad.js';
-import { getClaimableBalance, getMember, getMemberStatistics, getProfile, getTreasuries } from './lib/buddylink.js';
+import { manageReferralRewards, showBuddyLinkData } from './manageBuddyLink.js';
 
 const config = await getConfig();
 const env = getEnv(config.mode);
@@ -48,65 +44,14 @@ async function initialize() {
 				};
 
 				await storeSettings(settings);
-				showBuddyLinkData(connection, settings);
+				showBuddyLinkData(connection, settings, config.buddyLink, env);
 			}
 		} catch (err) {
 			log(`Aborted due to error: ${err}`, LogType.ERROR);
 		}		
 	} else {
-		showBuddyLinkData(connection, settings);
+		manageReferralRewards(connection, devAccount, settings, config.buddyLink, env);
 	}
-}
-
-async function showBuddyLinkData(connection: Connection, settings: Settings): Promise<void> {
-	const vaultPda = new PublicKey(settings.vaultPda!);
-	const member = await getMember(connection, config.buddyLink.orgName, config.buddyLink.memberName, env);
-	
-	if (member) {
-		log('Referral Link:', LogType.HIGHLIGHT);
-		log(`https://play.staratlas.com/?r=${member?.account.name}`, LogType.SPOTLIGHT);
-	} else {
-		log('BuddyLink Member does not exist!', LogType.ERROR);
-	}
-	log('', LogType.NORMAL);
-
-	log('Buddy Link:', LogType.HIGHLIGHT);
-	const profile = await getProfile(connection, vaultPda, env);
-	if (profile) {
-		log(profile?.account.authority.toString(), LogType.DETAILS, 'Authority:');
-	} else {
-		log('BuddyLink Profile does not exist!', LogType.ERROR);
-	}
-
-	if (member) {
-		try {
-			const stats = await getMemberStatistics(member!);
-			log('Member Stats are present - All systems go!', LogType.DETAILS);
-			// console.log(stats);
-		} catch (err) {
-			log('An error occured while fetching the BuddyLink Member Stats!', LogType.ERROR);
-			log(err as string, LogType.NORMAL);
-		}
-	}
-	log('', LogType.NORMAL);
-
-	const treasuries = await getTreasuries(connection, vaultPda, env);
-	const balances = await Promise.all(treasuries.map((treasury) => getClaimableBalance(treasury)));
-	const claimableBalanceNum = balances.filter((balance) => !!balance).length;
-	if (!treasuries.length) {
-		log('No treasuries could be found!', LogType.ERROR);
-	} else if (!claimableBalanceNum) {
-		log(`${treasuries.length} treasuries found - No claimable balances`, LogType.HIGHLIGHT);
-	} else if (claimableBalanceNum) {
-		log(`${treasuries.length} treasuries found - ${claimableBalanceNum} claimable balances:`, LogType.HIGHLIGHT);
-		balances.forEach((balance, idx) => {
-			const mint = treasuries[idx].account.mint.toString();
-			const symbol = getTokenSymbolForMint(mint);
-			const prettyBalance = getPrettyBalanceForMint(balance, mint);
-			log(`${prettyBalance}`, LogType.DETAILS, `${symbol}:`);
-		});
-	}
-	log('', LogType.NORMAL);
 }
 
 async function getDevAccount(connection: Connection): Promise<Keypair> {
@@ -125,22 +70,6 @@ async function getDevAccount(connection: Connection): Promise<Keypair> {
 	const privateKeyArray = bs58.decode(keyPair.private);
 	const account = Keypair.fromSecretKey(privateKeyArray);
 	return account;
-}
-
-function getTokenSymbolForMint(mint: string) {
-	if (mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
-		return 'USDC';
-	} else if (mint === 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx') {
-		return 'ATLAS';
-	}
-}
-
-function getPrettyBalanceForMint(balance: number, mint: string) {
-	if (mint === 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v') {
-		return balance / Math.pow(10, 6);
-	} else if (mint === 'ATLASXmbPQxBUYbxPsV97usA3fPQYEqzQBUHgiFCUsXx') {
-		return balance / Math.pow(10, 8);
-	}
 }
 
 function showIntro(settings: Settings | undefined, devAccount: Keypair, config: Configuration, env: Environment): void {

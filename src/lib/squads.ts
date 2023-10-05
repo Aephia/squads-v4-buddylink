@@ -13,7 +13,7 @@ import { Permissions } from '@sqds/multisig/lib/types.js';
 import { Multisig } from '@sqds/multisig/lib/generated/accounts/Multisig.js';
 import { Proposal } from '@sqds/multisig/lib/generated/accounts/Proposal.js';
 import { translateAndThrowAnchorError } from '@sqds/multisig/lib/errors.js';
-import { getSetComputeLimitInstruction } from './common.js';
+import { getSetComputeLimitInstruction } from './solana.js';
 
 /**
  * Create a Squad where all members have max permissions, and there is no timelock and no configAuhority
@@ -30,6 +30,7 @@ export async function createSimpleSquad(
 	creator: Keypair,
 	memberList: PublicKey[],
 	threshold: number,
+	memo?: string
 ): Promise<{ multisigPda: PublicKey; vaultPda: PublicKey; signature: TransactionSignature }> {
 	if (threshold > memberList.length) {
 		throw "Threshold can't be greater than the total number of Squad members";
@@ -48,6 +49,7 @@ export async function createSimpleSquad(
 			permissions: Permissions.all(),
 		})),
 		timeLock: 0, // Create without any time-lock
+		memo,
 	});
 
 	await confirmTransaction(connection, signature);
@@ -73,7 +75,8 @@ export async function createSquadProposal(
 	connection: Connection,
 	multisigPda: PublicKey,
 	instructions: TransactionInstruction[],
-	proposingMember: Keypair
+	proposingMember: Keypair,
+	memo?: string,
 ): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
@@ -94,6 +97,7 @@ export async function createSquadProposal(
 		vaultIndex: 0,
 		ephemeralSigners: 0,
 		transactionMessage,
+		memo
 	});
 	await confirmTransaction(connection, txSignature);
 
