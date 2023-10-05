@@ -18,7 +18,7 @@
 		"typescript": "^5.0.2"
 	},
 	"dependencies": {
-		"@ladderlabs/buddy-sdk": "^0.2.7",
+		"@ladderlabs/buddy-sdk": "^0.2.11",
 		"@solana/web3.js": "^1.78.4",
 		"@sqds/multisig": "^1.9.0",
 		"bs58": "^5.0.0",
