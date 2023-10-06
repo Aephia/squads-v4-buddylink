@@ -69,6 +69,10 @@ export async function getClaimableTickets(member: Member): Promise<number> {
 	return pendingTickets.divn(500).divn(1e6).toNumber();
 }
 
+export async function getTreasuryContributors(client: Client, treasury: Treasury): Promise<Member[]> {
+	return client.member.getByTreasuryReferrer(treasury.account.pda);
+}
+
 export function getClaimTreasuryInstructions(treasury: Treasury): Promise<TransactionInstruction[]> {
 	return treasury.claim();
 }
@@ -98,6 +102,8 @@ export async function sendTransaction(
 
 	await confirmTransaction(connection, signature);
 }
+
+export const getBuddyLinkClient = getClient;
 
 function getClient(connection: Connection, signerKey: PublicKey | undefined, env: Environment): Client {
 	if (env === Environment.DEV) {

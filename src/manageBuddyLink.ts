@@ -2,9 +2,21 @@ import { Connection, Keypair, PublicKey, TransactionInstruction } from '@solana/
 import inquirer, { ChoiceOptions, ListQuestionOptions } from 'inquirer';
 import { BuddyLinkConfig, Environment, LogType, Settings } from './types.js';
 import { log } from './utils.js';
-import { getClaimGoldenTicketInstructions, getClaimTreasuryInstructions, getClaimableBalance, getClaimableTickets, getMember, getMemberStatistics, getProfile, getTreasuries } from './lib/buddylink.js';
-import { Member, Treasury } from '@ladderlabs/buddy-sdk';
+import {
+	getClaimGoldenTicketInstructions,
+	getClaimTreasuryInstructions,
+	getClaimableBalance,
+	getClaimableTickets,
+	getBuddyLinkClient,
+	getMember,
+	getMemberStatistics,
+	getProfile,
+	getTreasuries,
+	getTreasuryContributors,
+} from './lib/buddylink.js';
+import { Client, Member, Treasury } from '@ladderlabs/buddy-sdk';
 import { createSquadProposal } from './lib/squads.js';
+import { MemberAccount, MemberStatisticsAccount } from '@ladderlabs/buddy-sdk/dist/esm/models/Member.js';
 
 interface Answers {
 	claim: RewardType;
@@ -103,16 +115,15 @@ export async function showBuddyLinkData(
 ): Promise<BuddyLinkDetails> {
 	const vaultPda = new PublicKey(settings.vaultPda!);
 	const member = await getMember(connection, config.orgName, config.memberName, vaultPda, env);
+	const client = getBuddyLinkClient(connection, vaultPda, env);
 
+	log('Buddy Link:', LogType.HIGHLIGHT);
 	if (member) {
-		log('Referral Link:', LogType.HIGHLIGHT);
 		log(`https://play.staratlas.com/?r=${member?.account.name}`, LogType.SPOTLIGHT);
 	} else {
 		log('BuddyLink Member does not exist!', LogType.ERROR);
 	}
-	log('', LogType.NORMAL);
-
-	log('Buddy Link:', LogType.HIGHLIGHT);
+	
 	const profile = await getProfile(connection, vaultPda, env);
 	if (profile) {
 		log(profile?.account.authority.toString(), LogType.DETAILS, 'Authority:');
@@ -120,29 +131,36 @@ export async function showBuddyLinkData(
 		log('BuddyLink Profile does not exist!', LogType.ERROR);
 	}
 
+	let stats: MemberStatisticsAccount | null = null;
 	if (member) {
 		try {
-			const stats = await getMemberStatistics(member!);
-			log('Member Stats are present - All systems go!', LogType.DETAILS);
-			const tickets = await getClaimableTickets(member);
-			console.log('Tickets', tickets);
+			stats = await getMemberStatistics(member!);
 		} catch (err) {
 			log('An error occured while fetching the BuddyLink Member Stats!', LogType.ERROR);
 			log(err as string, LogType.NORMAL);
 		}
 	}
-	log('', LogType.NORMAL);
+	if (stats) {
+		log(`${stats.totalReferrerVolume.divn(1e6).toString()} USDC`, LogType.DETAILS, 'Total referred volume:');
+	}
 
 	const treasuries = await getTreasuries(connection, vaultPda, env);
 	const balances = await Promise.all(treasuries.map((treasury) => getClaimableBalance(treasury)));
+	const referees = await getReferrees(client, treasuries);
 	const claimableBalanceNum = balances.filter((balance) => !!balance).length;
 	const pendingRewards: PendingReward[] = [];
+	
+	log(`${referees.length}`, LogType.DETAILS, `Referees:`);
+	log('', LogType.NORMAL);
+
+	log(`Treasuries (${treasuries.length}):`, LogType.HIGHLIGHT);
 	if (!treasuries.length) {
 		log('No treasuries could be found!', LogType.ERROR);
 	} else if (!claimableBalanceNum) {
-		log(`${treasuries.length} treasuries found - No claimable balances`, LogType.HIGHLIGHT);
+		log(`No claimable balances`, LogType.DETAILS);
 	} else if (claimableBalanceNum) {
-		log(`${treasuries.length} treasuries found - ${claimableBalanceNum} claimable balances:`, LogType.HIGHLIGHT);
+		log(`${claimableBalanceNum} claimable balances:`, LogType.DETAILS);
+		
 		balances.forEach((balance, idx) => {
 			const mint = treasuries[idx].account.mint.toString();
 			const symbol = getTokenSymbolForMint(mint)!;
@@ -168,8 +186,12 @@ export async function showBuddyLinkData(
 				prettyBalance: pendingTickets,
 			});
 		}
-		log(`Golden Tickets`, LogType.HIGHLIGHT);
-		log(`${pendingTickets}`, LogType.DETAILS, `Claimable Tickets:`);
+		log(`Golden Tickets:`, LogType.HIGHLIGHT);
+		log(`${pendingTickets}`, LogType.DETAILS, `Claimable tickets:`);
+		if (stats) {
+			log(`${stats?.numberOfClaimedRewards.toNumber()}`, LogType.DETAILS, `Claimed tickets:`);
+			log(`${stats?.lastClaimed.toString().length === 0 ? 'never' : new Date(+`${stats?.lastClaimed.toString()}000`)}`, LogType.DETAILS, 'Last claimed:');
+		}
 		log('', LogType.NORMAL);
 	}
 
@@ -179,7 +201,6 @@ export async function showBuddyLinkData(
 		pendingRewards,
 	};
 }
-
 
 async function claimPendingReward(connection: Connection, config: ClaimPendingRewardConfig) {
 	const { reward, member, treasuries, multisigPda, creator } = config;
@@ -244,6 +265,17 @@ async function promptClaimReward(pendingRewards: PendingReward[]): Promise<Rewar
 		console.log(err);
 		return RewardType.NONE;
 	}
+}
+
+async function getReferrees(client: Client, treasuries: Treasury[]): Promise<string[]> {
+	const members = await Promise.all(treasuries.map((treasury) => getTreasuryContributors(client, treasury)));
+	const referees = new Set<string>;
+	treasuries.forEach((_, index) => {
+		members[index].forEach((member) => referees.add(member.account.owner.toString()));
+		//console.log([...referees[index].values()]);
+	});
+
+	return [...referees.values()];
 }
 
 function getTokenSymbolForMint(mint: string) {

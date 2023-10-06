@@ -104,14 +104,14 @@ function showIntro(settings: Settings | undefined, devAccount: Keypair, config: 
 		log(settings?.multisigPda, LogType.DETAILS, 'MultiSig PDA:')
 		log(settings?.vaultPda, LogType.DETAILS, 'Vault PDA:')
 		log('', LogType.NORMAL);
-		log('Fetching Treasury Data:', LogType.NORMAL);
+		log('Fetching BuddyLink Data...', LogType.NORMAL);
 	} else if (settings?.createKey) {
 		log('Found preconfigured createKey:', LogType.HIGHLIGHT);
 		log(settings?.createKey, LogType.DETAILS, 'CreateKey:');
 		log('', LogType.NORMAL);
-		log('Creating new Squad with BuddyLink referral:', LogType.NORMAL);
+		log('Creating new Squad with BuddyLink referral...', LogType.NORMAL);
 	} else {
-		log('Creating new Squad with BuddyLink referral:', LogType.NORMAL);
+		log('Creating new Squad with BuddyLink referral...', LogType.NORMAL);
 	}
 	log('', LogType.NORMAL);
 }

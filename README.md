@@ -62,21 +62,27 @@ Lastly, it stores your vault details in a `settings.json` file.
 
 ## Squad
 
-You can view your Squad's setup using the following URL:
-https://v4.squads.so/squads/<your Vault PDA>/members
+You can view your Squad using the following URL:
+https://v4.squads.so/squads/<your Vault PDA>/home
 
-If all goes well, you see all the members you provided + your dev-account. Note that your dev-account has limited permissions.
+If all goes well, you see all the members you provided + your dev-account. Note that your dev-account now has limited permissions. It can only create proposals, but not vote on any.
 
-## Next
+## Config
 
-If everything went as planned, leave the `settings.json` file intact. If you run the script again with `npm run execute` it will not create a new Squad, but instead only check your outstanding BuddyLink balances
+Valid options for `mode` are:
+- local
+- dev
+- prod
 
-## Future Development
+# Claiming Rewards
 
-- Add code to create a transaction+proposal to claim all earned BuddyLink assets. This is why the devAccount gets limited permissions, and is not simply beingremoved. 
-- Add code to claim GoldenTickets
+If everything went as planned, a new `settings.json` file was created. Please leave the `config.json` and `settings.json` files intact, regard them are *read-only* from now on.
 
-## Development
+If you run the script again with `npm run execute` it will not create a new Squad, but will instead only check your outstanding BuddyLink rewards. If there are any claimable rewards, you will be asked if you want to create a proposal to claim any of these.
+
+Note that this will create a new proposal using the `mainnetAccount` from your config file. If something went wrong, make sure this account still has authorisation to create proposals within your Squad. By default, this should be the case. 
+
+# Development
 
 If you want to help with development, or you run into crazy issues that require a more controlled environment for testing, please follow the below instructions:
 
@@ -90,11 +96,3 @@ You should now see "Wrote program to buddylink.so"
 You should now see "Wrote program to squads.so"
 5. Run `solana-test-validator --bpf-program BUDDYtQp7Di1xfojiCSVDksiYLQx511DPdj2nbtG9Yu5 buddylink.so --bpf-program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf squads.so --reset`
 6. In your `config.json` set the `mode` to "local"
-
-
-## Config
-
-Valid options for `mode` are:
-- local
-- dev
-- prod
