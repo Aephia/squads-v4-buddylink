@@ -82,6 +82,12 @@ If you run the script again with `npm run execute` it will not create a new Squa
 
 Note that this will create a new proposal using the `mainnetAccount` from your config file. If something went wrong, make sure this account still has authorisation to create proposals within your Squad. By default, this should be the case. 
 
+## Claim Proposals
+
+When you claim a reward through this tool, it is not actually claimed. Instead, a transaction-proposal will be created for your Squad to approve.
+
+Until you do, the claimable rewards will remain the same as far as Buddy Link is concerned. This means this tool will show you the same pending rewards when you run it again. The idea is to get the claims approved first and then run the tool again to (potentially) create new claim proposals.
+
 # Development
 
 If you want to help with development, or you run into crazy issues that require a more controlled environment for testing, please follow the below instructions:

@@ -16,7 +16,7 @@ import {
 } from './lib/buddylink.js';
 import { Client, Member, Treasury } from '@ladderlabs/buddy-sdk';
 import { createSquadProposal } from './lib/squads.js';
-import { MemberAccount, MemberStatisticsAccount } from '@ladderlabs/buddy-sdk/dist/esm/models/Member.js';
+import { MemberStatisticsAccount } from '@ladderlabs/buddy-sdk/dist/esm/models/Member.js';
 
 interface Answers {
 	claim: RewardType;
