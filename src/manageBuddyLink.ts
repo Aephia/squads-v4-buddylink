@@ -230,7 +230,9 @@ async function claimPendingReward(connection: Connection, config: ClaimPendingRe
 		new PublicKey(multisigPda),
 		instructions,
 		creator,
-		`Claim BuddyLink ${reward.symbol} reward`
+		`Claim BuddyLink ${reward.symbol} reward`,
+		1,
+		30_000
 	);
 	log(`Transaction & Proposal created to claim ${reward.symbol}!`, LogType.HIGHLIGHT);
 	log(signatures[0], LogType.SIGNATURE);
@@ -271,8 +273,8 @@ async function getReferrees(client: Client, treasuries: Treasury[]): Promise<str
 	const members = await Promise.all(treasuries.map((treasury) => getTreasuryContributors(client, treasury)));
 	const referees = new Set<string>;
 	treasuries.forEach((_, index) => {
-		members[index].forEach((member) => referees.add(member.account.owner.toString()));
-		//console.log([...referees[index].values()]);
+		// members[index].forEach((member) => referees.add(member.account.owner.toString()));
+		members[index].forEach((member) => referees.add(member.account.name));
 	});
 
 	return [...referees.values()];

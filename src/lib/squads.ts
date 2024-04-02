@@ -8,12 +8,16 @@ import {
 	VersionedTransaction,
 } from '@solana/web3.js';
 import * as multisig from '@sqds/multisig/lib/index.js';
-import { confirmTransaction } from '../utils.js';
 import { Permissions } from '@sqds/multisig/lib/types.js';
 import { Multisig } from '@sqds/multisig/lib/generated/accounts/Multisig.js';
 import { Proposal } from '@sqds/multisig/lib/generated/accounts/Proposal.js';
 import { translateAndThrowAnchorError } from '@sqds/multisig/lib/errors.js';
-import { getSetComputeLimitInstruction } from './solana.js';
+import {
+	addFeeToInstructions,
+	confirmTransaction,
+	getSetComputeLimitInstruction,
+	getSetComputePriceInstruction,
+} from './solana.js';
 
 /**
  * Create a Squad where all members have max permissions, and there is no timelock and no configAuhority
@@ -74,42 +78,122 @@ export async function createSimpleSquad(
 export async function createSquadProposal(
 	connection: Connection,
 	multisigPda: PublicKey,
-	instructions: TransactionInstruction[],
+	txInstructions: TransactionInstruction[],
 	proposingMember: Keypair,
 	memo?: string,
+	priorityFee = 1,
+	computeLimit?: number,
 ): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
-	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
+	const txSignature = await createNewSquadTransaction(
+		connection,
+		multisigPda,
+		txInstructions,
+		transactionIndex,
+		proposingMember,
+		memo,
+		priorityFee,
+		computeLimit
+	);
 
-	// Here we are adding all the instructions that we want to be executed in our transaction
+	// As this seems an unnecessary step, leave it out.
+	//const propSignature = await createProposalForSquadTx(connection, multisigPda, transactionIndex, proposingMember);
+	return {
+		signatures: [txSignature /*, propSignature*/],
+		transactionIndex,
+	};
+}
+
+export async function createNewSquadTransaction(
+	connection: Connection,
+	multisigPda: PublicKey,
+	txInstructions: TransactionInstruction[],
+	transactionIndex: bigint,
+	proposingMember: Keypair,
+	memo?: string,
+	priorityFee = 1,
+	computeLimit?: number,
+): Promise<TransactionSignature> {
+	const vaultPda = getVaultPdaForMultiSig(multisigPda);
+	const blockhash = (await connection.getLatestBlockhash()).blockhash;
+
+	// Add all the instructions that we want to be executed in our transaction
 	const transactionMessage = new TransactionMessage({
 		payerKey: vaultPda,
-		recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
-		instructions,
+		recentBlockhash: blockhash,
+		instructions: txInstructions,
 	});
-
-	const txSignature = await multisig.rpc.vaultTransactionCreate({
-		connection,
-		feePayer: proposingMember,
+	const mainInstruction = multisig.instructions.vaultTransactionCreate({
 		multisigPda,
 		transactionIndex,
 		creator: proposingMember.publicKey,
 		vaultIndex: 0,
 		ephemeralSigners: 0,
 		transactionMessage,
-		memo
+		memo,
 	});
-	await confirmTransaction(connection, txSignature);
+	const instructions = await addFeeToInstructions(
+		[mainInstruction],
+		priorityFee,
+		multisig.PROGRAM_ADDRESS,
+		computeLimit
+	);
+	const message = new TransactionMessage({
+		payerKey: proposingMember.publicKey,
+		recentBlockhash: blockhash,
+		instructions,
+	}).compileToV0Message();
 
-	const propSignature = await multisig.rpc.proposalCreate({
-		connection,
-		feePayer: proposingMember,
+	const tx = new VersionedTransaction(message);
+	tx.sign([proposingMember]);
+
+	let txSignature: TransactionSignature;
+	try {
+		txSignature = await connection.sendTransaction(tx, {
+			maxRetries: 5,
+		});
+	} catch (err) {
+		translateAndThrowAnchorError(err);
+	}
+
+	await confirmTransaction(connection, txSignature);
+	return txSignature;
+}
+
+export async function createProposalForSquadTx(
+	connection: Connection,
+	multisigPda: PublicKey,
+	transactionIndex: bigint,
+	proposingMember: Keypair
+): Promise<TransactionSignature> {
+	const blockhash = (await connection.getLatestBlockhash()).blockhash;
+	const mainInstruction = multisig.instructions.proposalCreate({
 		multisigPda,
+		creator: proposingMember.publicKey,
 		transactionIndex,
-		creator: proposingMember,
 	});
-	await confirmTransaction(connection, propSignature);
-	return { signatures: [txSignature, propSignature], transactionIndex };
+
+	const instructions = await addFeeToInstructions([mainInstruction], 1, multisig.PROGRAM_ADDRESS);
+	const message = new TransactionMessage({
+		payerKey: proposingMember.publicKey,
+		recentBlockhash: blockhash,
+		instructions,
+	}).compileToV0Message();
+
+	const tx = new VersionedTransaction(message);
+	tx.sign([proposingMember]);
+
+	let txSignature: TransactionSignature;
+	try {
+		txSignature = await connection.sendTransaction(tx, {
+			maxRetries: 5,
+		});
+	} catch (err) {
+		translateAndThrowAnchorError(err);
+	}
+
+	await confirmTransaction(connection, txSignature);
+	return txSignature;
 }
 
 export async function approveProposal(
@@ -153,9 +237,11 @@ export async function executeTransactionWithComputeLimit(
 	transactionIndex: bigint,
 	executingMember: Keypair,
 	computeLimit: number,
+	microLamports: number,
 ): Promise<TransactionSignature> {
 	const blockhash = (await connection.getLatestBlockhash()).blockhash;
 	const cuInstruction = getSetComputeLimitInstruction(computeLimit);
+	const cpInstruction = getSetComputePriceInstruction(microLamports);
 	const { instruction, lookupTableAccounts } = await multisig.instructions.vaultTransactionExecute({
 		connection,
 		multisigPda,
@@ -166,7 +252,7 @@ export async function executeTransactionWithComputeLimit(
 	const message = new TransactionMessage({
 		payerKey: executingMember.publicKey,
 		recentBlockhash: blockhash,
-		instructions: [cuInstruction, instruction],
+		instructions: [cuInstruction, cpInstruction, instruction],
 	}).compileToV0Message(lookupTableAccounts);
 
 	const tx = new VersionedTransaction(message);

@@ -1,20 +1,53 @@
-import { Connection, TransactionSignature, RpcResponseAndContext, SignatureResult } from '@solana/web3.js';
 import { writeFile, readFile } from 'fs/promises';
 import { dirname } from 'path';
 import chalk from 'chalk';
 import { LogType } from './types.js';
 
-export async function confirmTransaction(
-	connection: Connection,
-	signature: TransactionSignature
-): Promise<RpcResponseAndContext<SignatureResult>> {
-	const latestBlockHash = await connection.getLatestBlockhash();
+export interface RecentPrioritizationFee {
+	slot: number;
+	prioritizationFee: number;
+}
 
-	return connection.confirmTransaction({
-		blockhash: latestBlockHash.blockhash,
-		lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-		signature: signature,
+export interface RecentPrioritizationResponse {
+	jsonrpc: '2.0';
+	id: 1;
+	result: RecentPrioritizationFee[];
+}
+
+export async function getEstimatedPriorityFee(programAddress: string, max = false) {
+	let recentFees = (await getRecentPriorityFee(programAddress))
+		.filter(({ prioritizationFee }) => prioritizationFee > 0)
+		.map(({ prioritizationFee }) => prioritizationFee);
+
+	const itemsLenth = Math.min(3, recentFees.length);
+	recentFees = recentFees.splice(recentFees.length - itemsLenth);
+	if (max) {
+		return Math.max(...recentFees);
+	}
+	return Math.ceil(recentFees.reduce((total, fee, idx) => total + fee * (idx + 1), 0) / factorialize(itemsLenth));
+}
+
+export async function getRecentPriorityFee(programAddress: string): Promise<RecentPrioritizationFee[]> {
+	const requestBody = {
+		jsonrpc: '2.0',
+		id: 1,
+		method: 'getRecentPrioritizationFees',
+		params: [[programAddress]],
+	};
+	const response = await fetch('https://api.devnet.solana.com', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(requestBody),
 	});
+
+	if (!response.ok) {
+		throw new Error(`Error fetching priority fee history: ${response.status}`);
+	}
+
+	const data = (await response.json()) as RecentPrioritizationResponse;
+	return data.result;
 }
 
 export async function createJSONFile(filePath: string, data: any) {
@@ -60,4 +93,12 @@ export function log(msg: string, type: LogType, prefix?: string): void {
 	if (type === LogType.DETAILS) {
 		console.log(chalk.white('\u2794 ') + chalk.green(prefix ? `${prefix} ` : '') + chalk.white(msg));
 	}
+}
+
+function factorialize(num: number) {
+	if (num === 0 || num === 1) return 1;
+	for (let i = num - 1; i >= 1; i--) {
+		num *= i;
+	}
+	return num;
 }

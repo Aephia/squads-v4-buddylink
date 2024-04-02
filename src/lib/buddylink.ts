@@ -1,7 +1,7 @@
 import { Connection, Keypair, PublicKey, Signer, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { Buddy, Client, Treasury } from '@ladderlabs/buddy-sdk';
 import { Environment } from '../types.js';
-import { confirmTransaction } from '../utils.js';
+import { confirmTransaction } from './solana.js';
 import { Member, MemberStatisticsAccount } from '@ladderlabs/buddy-sdk/dist/esm/models/Member.js';
 
 const PROGRAM_ID_DEVNET = '9zE4EQ5tJbEeMYwtS2w8KrSHTtTW4UPqwfbBSEkUrNCA';

@@ -114,7 +114,7 @@ async function createBuddyLinkMember(connection: Connection, multisigPda: Public
 	log('', LogType.NORMAL);
 
 	// Execute the transaction
-	signature = await executeTransactionWithComputeLimit(connection, multisigPda, transactionIndex, creator, 500000);
+	signature = await executeTransactionWithComputeLimit(connection, multisigPda, transactionIndex, creator, 500000, 1);
 	log('Transaction executed - BuddyLink Member created', LogType.HIGHLIGHT);
 	log(signature, LogType.SIGNATURE);
 	log('', LogType.NORMAL);
@@ -123,7 +123,7 @@ async function createBuddyLinkMember(connection: Connection, multisigPda: Public
 }
 
 /**
- * Create and execute a proposal to tranasfer some SOL to the devAccount
+ * Create and execute a proposal to transfer some SOL to the devAccount
  * 
  * Note: This is only used to check the full Squads-runthrough without using
  * any BuddyLink dependency.
