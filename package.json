@@ -2,7 +2,7 @@
 	"name": "squads-v4-buddylink",
 	"main": "lib/main.js",
 	"private": true,
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"type": "module",
 	"scripts": {
 		"dev": "ts-node --experimental-specifier-resolution=node ./src/main.ts ",

@@ -15,6 +15,7 @@ import { translateAndThrowAnchorError } from '@sqds/multisig/lib/errors.js';
 import {
 	addFeeToInstructions,
 	confirmTransaction,
+	createOptimizedTransaction,
 	getSetComputeLimitInstruction,
 	getSetComputePriceInstruction,
 } from './solana.js';
@@ -73,6 +74,7 @@ export async function createSimpleSquad(
  * @param multisigPda The MultiSig PDA
  * @param instructions The custom instructions that you want to execute in this transaction
  * @param proposingMember The proposing Solana account (must be a Squad member) 
+ * @param memo Transaction/Proposal Description
  * @returns The signature of the proposal creation and related transaction index
  */
 export async function createSquadProposal(
@@ -81,8 +83,6 @@ export async function createSquadProposal(
 	txInstructions: TransactionInstruction[],
 	proposingMember: Keypair,
 	memo?: string,
-	priorityFee = 1,
-	computeLimit?: number,
 ): Promise<{ signatures: TransactionSignature[]; transactionIndex: bigint }> {
 	const transactionIndex = await getNextTransactionIndex(connection, multisigPda);
 	const txSignature = await createNewSquadTransaction(
@@ -92,11 +92,9 @@ export async function createSquadProposal(
 		transactionIndex,
 		proposingMember,
 		memo,
-		priorityFee,
-		computeLimit
 	);
 
-	// As this seems an unnecessary step, leave it out.
+	// As this seems to be an unnecessary step, leave it out.
 	//const propSignature = await createProposalForSquadTx(connection, multisigPda, transactionIndex, proposingMember);
 	return {
 		signatures: [txSignature /*, propSignature*/],
@@ -110,19 +108,19 @@ export async function createNewSquadTransaction(
 	txInstructions: TransactionInstruction[],
 	transactionIndex: bigint,
 	proposingMember: Keypair,
-	memo?: string,
-	priorityFee = 1,
-	computeLimit?: number,
+	memo?: string
 ): Promise<TransactionSignature> {
 	const vaultPda = getVaultPdaForMultiSig(multisigPda);
 	const blockhash = (await connection.getLatestBlockhash()).blockhash;
 
-	// Add all the instructions that we want to be executed in our transaction
+	// Add all the instructions that we want to execute with our Squad account
 	const transactionMessage = new TransactionMessage({
 		payerKey: vaultPda,
 		recentBlockhash: blockhash,
 		instructions: txInstructions,
 	});
+
+	// Wrap the instructions into the instruction that create the pending transactiom
 	const mainInstruction = multisig.instructions.vaultTransactionCreate({
 		multisigPda,
 		transactionIndex,
@@ -132,21 +130,16 @@ export async function createNewSquadTransaction(
 		transactionMessage,
 		memo,
 	});
-	const instructions = await addFeeToInstructions(
-		[mainInstruction],
-		priorityFee,
-		multisig.PROGRAM_ADDRESS,
-		computeLimit
-	);
-	const message = new TransactionMessage({
-		payerKey: proposingMember.publicKey,
-		recentBlockhash: blockhash,
-		instructions,
-	}).compileToV0Message();
 
-	const tx = new VersionedTransaction(message);
+	// Create a transaction with correct compute limit and priority fee
+	const { transaction: tx } = await createOptimizedTransaction({
+		connection,
+		programAddress: multisig.PROGRAM_ADDRESS,
+		instructions: [mainInstruction],
+		signerKey: proposingMember.publicKey,
+	});
+	
 	tx.sign([proposingMember]);
-
 	let txSignature: TransactionSignature;
 	try {
 		txSignature = await connection.sendTransaction(tx, {

@@ -231,8 +231,8 @@ async function claimPendingReward(connection: Connection, config: ClaimPendingRe
 		instructions,
 		creator,
 		`Claim BuddyLink ${reward.symbol} reward`,
-		1,
-		30_000
+		// 1,
+		// 30_000
 	);
 	log(`Transaction & Proposal created to claim ${reward.symbol}!`, LogType.HIGHLIGHT);
 	log(signatures[0], LogType.SIGNATURE);
